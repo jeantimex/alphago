@@ -20,13 +20,13 @@ def main():
     board_size_pixels = (BOARD_SIZE - 1) * CELL_SIZE  # Actual board size in pixels
     # Add extra window space for UI elements and padding
     window_width = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
-    window_height = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
+    window_height = board_size_pixels + 2 * BOARD_PADDING + 200  # Extra space for UI
     screen = pygame.display.set_mode((window_width, window_height))
     pygame.display.set_caption("AlphaGo Implementation")
     
     # Calculate board position to center it
     board_x_offset = (window_width - board_size_pixels) // 2
-    board_y_offset = (window_height - board_size_pixels) // 2
+    board_y_offset = (window_height - board_size_pixels - 100) // 2
     
     # Create game objects
     board = Board(BOARD_SIZE)
@@ -43,7 +43,7 @@ def main():
     
     # Evaluate button
     evaluate_button_x = 20
-    evaluate_button_y = 20
+    evaluate_button_y = window_height - 180
     evaluate_button_rect = pygame.Rect(evaluate_button_x, evaluate_button_y, button_width, button_height)
     
     # Game state variables
@@ -240,60 +240,67 @@ def main():
                         CELL_SIZE // 2 - 1
                     )
         
-        # Draw the evaluate button
-        button_color = (100, 200, 100) if show_territory else (150, 150, 150)
-        pygame.draw.rect(screen, button_color, evaluate_button_rect)
-        pygame.draw.rect(screen, (0, 0, 0), evaluate_button_rect, 2)  # Button border
+        # Draw UI elements
+        font = pygame.font.SysFont('Arial', 20)
         
-        # Button text
-        font = pygame.font.SysFont('Arial', 16)
-        button_text = "Hide Territory" if show_territory else "Show Territory"
-        text_surface = font.render(button_text, True, (0, 0, 0))
-        text_rect = text_surface.get_rect(center=evaluate_button_rect.center)
-        screen.blit(text_surface, text_rect)
+        # Draw game timer
+        timer_text = f"Time: {minutes:02d}:{seconds:02d}"
+        timer_surface = font.render(timer_text, True, (0, 0, 0))
+        screen.blit(timer_surface, (window_width - timer_surface.get_width() - 20, 20))
         
-        # Create a button to toggle influence numbers (if territory is shown)
+        # Calculate button positions at the bottom of the screen
+        button_y = window_height - 60  # Position for the bottom row of buttons
+        button_width = 150
+        button_height = 40
+        button_spacing = 20
+        
+        # Create a button to toggle territory evaluation
+        evaluate_button_rect = pygame.Rect(20, button_y, button_width, button_height)
+        pygame.draw.rect(screen, (50, 200, 50), evaluate_button_rect)
+        evaluate_text = font.render("Hide Territory" if show_territory else "Show Territory", True, (0, 0, 0))
+        screen.blit(evaluate_text, (evaluate_button_rect.centerx - evaluate_text.get_width() // 2, evaluate_button_rect.centery - evaluate_text.get_height() // 2))
+        
+        # Create horizontal layout for territory buttons and information
         if show_territory:
-            numbers_button_rect = pygame.Rect(20, 70, 150, 40)
+            # Numbers button (positioned to the right of evaluate button)
+            numbers_button_rect = pygame.Rect(20 + button_width + button_spacing, button_y, button_width, button_height)
             pygame.draw.rect(screen, (50, 150, 200), numbers_button_rect)
             numbers_text = font.render("Hide Numbers" if show_influence_numbers else "Show Numbers", True, (0, 0, 0))
             screen.blit(numbers_text, (numbers_button_rect.centerx - numbers_text.get_width() // 2, numbers_button_rect.centery - numbers_text.get_height() // 2))
             
-            # Create a button to toggle potential territory
-            potential_button_rect = pygame.Rect(20, 120, 150, 40)
+            # Potential territory button (positioned to the right of numbers button)
+            potential_button_rect = pygame.Rect(20 + (button_width + button_spacing) * 2, button_y, button_width, button_height)
             pygame.draw.rect(screen, (200, 150, 50), potential_button_rect)
             potential_text = font.render("Basic Territory" if potential_territory else "Potential Territory", True, (0, 0, 0))
             screen.blit(potential_text, (potential_button_rect.centerx - potential_text.get_width() // 2, potential_button_rect.centery - potential_text.get_height() // 2))
-        
-        # Display territory counts if evaluation is shown
-        if show_territory and game_state.influence_map is not None:
-            territory = game_state.get_territory_ownership()
-            territory_text = f"B: {territory[BLACK]} | W: {territory[WHITE]} | Neutral: {territory[EMPTY]}"
-            territory_surface = font.render(territory_text, True, (0, 0, 0))
-            screen.blit(territory_surface, (evaluate_button_x, evaluate_button_y + button_height + 5))
+            
+            # Display territory counts (positioned above the buttons)
+            if game_state.influence_map is not None:
+                territory = game_state.get_territory_ownership()
+                territory_text = f"Territory - Black: {territory[BLACK]} | White: {territory[WHITE]} | Neutral: {territory[EMPTY]}"
+                territory_surface = font.render(territory_text, True, (0, 0, 0))
+                screen.blit(territory_surface, (20, button_y - 30))
         
         # Display current player with stone icon
         player_text = "Current Player: "
-        text_surface = font.render(player_text, True, (0, 0, 0))
-        text_width = text_surface.get_width()
+        player_text_surface = font.render(player_text, True, (0, 0, 0))
         
-        # Center the player indicator
-        player_indicator_x = window_width // 2 - text_width // 2 - 15  # Adjust for stone icon
-        screen.blit(text_surface, (player_indicator_x, 20))
+        # Calculate position for the player indicator
+        player_text_x = window_width // 2 - (player_text_surface.get_width() + 15) // 2
+        player_text_y = 20
         
-        # Draw current player stone icon
+        # Draw the text
+        screen.blit(player_text_surface, (player_text_x, player_text_y))
+        
+        # Draw a stone icon next to the text
+        stone_x = player_text_x + player_text_surface.get_width() + 15
+        stone_y = player_text_y + player_text_surface.get_height() // 2
         stone_color = (0, 0, 0) if game_state.current_player == BLACK else (255, 255, 255)
-        pygame.draw.circle(
-            screen,
-            stone_color,
-            (player_indicator_x + text_width + 15, 30),  # Position after text
-            15  # Larger stone for visibility
-        )
+        pygame.draw.circle(screen, stone_color, (stone_x, stone_y), 10)
         
-        # Display timer in top right corner
-        timer_text = f"Time: {minutes:02d}:{seconds:02d}"
-        timer_surface = font.render(timer_text, True, (0, 0, 0))
-        screen.blit(timer_surface, (window_width - timer_surface.get_width() - 20, 20))
+        # Add a border to white stones to make them more visible
+        if game_state.current_player == WHITE:
+            pygame.draw.circle(screen, (0, 0, 0), (stone_x, stone_y), 10, 1)
         
         # Update the display
         pygame.display.flip()
