@@ -48,6 +48,8 @@ def main():
     
     # Game state variables
     show_territory = False
+    show_influence_numbers = False
+    potential_territory = True  # Enable potential territory by default
     
     # Game loop
     running = True
@@ -67,7 +69,20 @@ def main():
                             game_state.evaluate_territory()
                             print("Territory evaluation displayed")
                         else:
+                            show_influence_numbers = False
                             print("Territory evaluation hidden")
+                    # Check if numbers button was clicked (only if territory is shown)
+                    elif show_territory and numbers_button_rect.collidepoint(mouse_pos):
+                        show_influence_numbers = not show_influence_numbers
+                        print(f"Influence numbers {'displayed' if show_influence_numbers else 'hidden'}")
+                    # Check if potential territory button was clicked (only if territory is shown)
+                    elif show_territory and potential_button_rect.collidepoint(mouse_pos):
+                        potential_territory = not potential_territory
+                        # Update the territory evaluator setting
+                        game_state.territory_evaluator.set_potential_territory(potential_territory)
+                        # Recalculate territory
+                        game_state.evaluate_territory()
+                        print(f"Using {'potential' if potential_territory else 'basic'} territory evaluation")
                     else:
                         # Get board coordinates from mouse position
                         x, y = mouse_pos
@@ -92,6 +107,7 @@ def main():
                     game_state = GameState(board)
                     start_time = time.time()  # Reset timer
                     show_territory = False
+                    show_influence_numbers = False
                     print("Game reset")
                 elif event.key == pygame.K_t:
                     # Toggle territory evaluation
@@ -100,7 +116,22 @@ def main():
                         game_state.evaluate_territory()
                         print("Territory evaluation displayed")
                     else:
+                        show_influence_numbers = False
                         print("Territory evaluation hidden")
+                elif event.key == pygame.K_n:
+                    # Toggle influence numbers
+                    if show_territory:
+                        show_influence_numbers = not show_influence_numbers
+                        print(f"Influence numbers {'displayed' if show_influence_numbers else 'hidden'}")
+                elif event.key == pygame.K_p:
+                    # Toggle potential territory
+                    if show_territory:
+                        potential_territory = not potential_territory
+                        # Update the territory evaluator setting
+                        game_state.territory_evaluator.set_potential_territory(potential_territory)
+                        # Recalculate territory
+                        game_state.evaluate_territory()
+                        print(f"Using {'potential' if potential_territory else 'basic'} territory evaluation")
         
         # Update game timer
         game_time = int(time.time() - start_time)
@@ -158,39 +189,40 @@ def main():
             # Draw solid rectangles for black territory
             for point, influence in territory_data['black']:
                 x, y = point
-                # Calculate rectangle size based on influence strength (0.5 to 1.0)
-                # Map influence from 0.5-10 to 0.5-1.0 for size calculation
-                normalized_influence = min(1.0, max(0.5, abs(influence) / 10))
+                # Calculate rectangle size based on influence strength (0.3 to 0.9)
+                normalized_influence = 0.3 + (min(abs(influence), 10) / 10) * 0.6
                 rect_size = int(CELL_SIZE * normalized_influence)
                 
                 rect_x = board_x_offset + x * CELL_SIZE - rect_size // 2
                 rect_y = board_y_offset + y * CELL_SIZE - rect_size // 2
                 pygame.draw.rect(territory_surface, (0, 0, 0, 180), (rect_x, rect_y, rect_size, rect_size))
                 
-                # Draw a number indicating the influence strength
-                font = pygame.font.SysFont('Arial', 10)
-                text = f"{influence:.1f}"
-                text_surface = font.render(text, True, (255, 0, 0))
-                text_rect = text_surface.get_rect(center=(board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE))
-                territory_surface.blit(text_surface, text_rect)
+                # Draw a number indicating the influence strength (if enabled)
+                if show_influence_numbers:
+                    font = pygame.font.SysFont('Arial', 10)
+                    text = f"{influence:.1f}"
+                    text_surface = font.render(text, True, (255, 0, 0))
+                    text_rect = text_surface.get_rect(center=(board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE))
+                    territory_surface.blit(text_surface, text_rect)
             
             # Draw solid rectangles for white territory
             for point, influence in territory_data['white']:
                 x, y = point
-                # Calculate rectangle size based on influence strength (0.5 to 1.0)
-                normalized_influence = min(1.0, max(0.5, abs(influence) / 10))
+                # Calculate rectangle size based on influence strength (0.3 to 0.9)
+                normalized_influence = 0.3 + (min(abs(influence), 10) / 10) * 0.6
                 rect_size = int(CELL_SIZE * normalized_influence)
                 
                 rect_x = board_x_offset + x * CELL_SIZE - rect_size // 2
                 rect_y = board_y_offset + y * CELL_SIZE - rect_size // 2
                 pygame.draw.rect(territory_surface, (255, 255, 255, 180), (rect_x, rect_y, rect_size, rect_size))
                 
-                # Draw a number indicating the influence strength
-                font = pygame.font.SysFont('Arial', 10)
-                text = f"{abs(influence):.1f}"
-                text_surface = font.render(text, True, (255, 0, 0))
-                text_rect = text_surface.get_rect(center=(board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE))
-                territory_surface.blit(text_surface, text_rect)
+                # Draw a number indicating the influence strength (if enabled)
+                if show_influence_numbers:
+                    font = pygame.font.SysFont('Arial', 10)
+                    text = f"{abs(influence):.1f}"
+                    text_surface = font.render(text, True, (255, 0, 0))
+                    text_rect = text_surface.get_rect(center=(board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE))
+                    territory_surface.blit(text_surface, text_rect)
             
             # Blit the territory surface onto the screen
             screen.blit(territory_surface, (0, 0))
@@ -219,6 +251,19 @@ def main():
         text_surface = font.render(button_text, True, (0, 0, 0))
         text_rect = text_surface.get_rect(center=evaluate_button_rect.center)
         screen.blit(text_surface, text_rect)
+        
+        # Create a button to toggle influence numbers (if territory is shown)
+        if show_territory:
+            numbers_button_rect = pygame.Rect(20, 70, 150, 40)
+            pygame.draw.rect(screen, (50, 150, 200), numbers_button_rect)
+            numbers_text = font.render("Hide Numbers" if show_influence_numbers else "Show Numbers", True, (0, 0, 0))
+            screen.blit(numbers_text, (numbers_button_rect.centerx - numbers_text.get_width() // 2, numbers_button_rect.centery - numbers_text.get_height() // 2))
+            
+            # Create a button to toggle potential territory
+            potential_button_rect = pygame.Rect(20, 120, 150, 40)
+            pygame.draw.rect(screen, (200, 150, 50), potential_button_rect)
+            potential_text = font.render("Basic Territory" if potential_territory else "Potential Territory", True, (0, 0, 0))
+            screen.blit(potential_text, (potential_button_rect.centerx - potential_text.get_width() // 2, potential_button_rect.centery - potential_text.get_height() // 2))
         
         # Display territory counts if evaluation is shown
         if show_territory and game_state.influence_map is not None:

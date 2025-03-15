@@ -1,32 +1,28 @@
 """
 Territory evaluation module for the Go game implementation.
-Provides algorithms to evaluate territory control and influence on the board.
+Evaluates territory control and influence on the board.
 """
 
 import numpy as np
 from .constants import BLACK, WHITE, EMPTY
 
 class TerritoryEvaluator:
-    """
-    Class for evaluating territory in a Go game.
-    Implements various algorithms for territory calculation and visualization.
-    """
-    
     def __init__(self, board):
         """
-        Initialize the territory evaluator.
+        Initialize a new territory evaluator.
         
         Args:
-            board: The game board object
+            board (Board): The game board
         """
         self.board = board
         self.territory_map = None
         self.influence_map = None
+        self.potential_territory = True  # Enable potential territory evaluation by default
     
     def evaluate(self):
         """
         Evaluate the territory control and influence on the board.
-        Uses a sophisticated algorithm based on standard Go rules.
+        Uses a sophisticated algorithm based on standard Go rules and influence propagation.
         
         Returns:
             tuple: (territory_map, influence_map)
@@ -41,7 +37,7 @@ class TerritoryEvaluator:
         territory_map = np.zeros((size, size), dtype=float)
         influence_map = np.zeros((size, size), dtype=float)
         
-        # Step 1: Mark stones on the board
+        # Step 1: Mark stones on the board with strong influence
         for y in range(size):
             for x in range(size):
                 stone = self.board.get_stone(x, y)
@@ -87,32 +83,74 @@ class TerritoryEvaluator:
         
         # Step 3: Propagate influence from strong territories to weaker ones
         # This creates a more gradual transition in influence
-        for _ in range(3):  # Multiple iterations to smooth influence
+        # Increase iterations for more potential territory evaluation
+        propagation_iterations = 8 if self.potential_territory else 3
+        
+        # Create a distance-based decay matrix for influence propagation
+        decay_matrix = np.ones((3, 3), dtype=float)
+        decay_matrix[0, 0] = decay_matrix[0, 2] = decay_matrix[2, 0] = decay_matrix[2, 2] = 0.2  # Diagonals
+        decay_matrix[0, 1] = decay_matrix[1, 0] = decay_matrix[1, 2] = decay_matrix[2, 1] = 0.4  # Adjacents
+        decay_matrix[1, 1] = 0  # Center (will be handled separately)
+        
+        for _ in range(propagation_iterations):
             new_territory_map = territory_map.copy()
             
             for y in range(size):
                 for x in range(size):
                     if self.board.get_stone(x, y) == EMPTY:
-                        # Calculate influence from neighbors
-                        neighbors_influence = 0
-                        neighbor_count = 0
-                        
-                        for nx, ny in [(x+1, y), (x-1, y), (x, y+1), (x, y-1)]:
-                            if 0 <= nx < size and 0 <= ny < size:
-                                neighbors_influence += territory_map[ny, nx]
-                                neighbor_count += 1
-                        
-                        if neighbor_count > 0:
-                            # Blend current value with neighbors (weighted average)
-                            current_weight = 0.7  # Weight for current value
-                            neighbor_weight = 0.3  # Weight for neighbors' average
+                        # For potential territory, we use a more sophisticated influence propagation
+                        if self.potential_territory:
+                            influence_sum = 0
+                            weight_sum = 0
                             
-                            new_value = (
-                                current_weight * territory_map[y, x] +
-                                neighbor_weight * (neighbors_influence / neighbor_count)
-                            )
+                            # Apply the decay matrix for influence propagation
+                            for dy in range(-1, 2):
+                                for dx in range(-1, 2):
+                                    ny, nx = y + dy, x + dx
+                                    if 0 <= ny < size and 0 <= nx < size and (dy != 0 or dx != 0):
+                                        # Weight based on distance and current influence
+                                        weight = decay_matrix[dy+1, dx+1]
+                                        influence = territory_map[ny, nx]
+                                        
+                                        # Stones have stronger influence than empty spaces
+                                        if self.board.get_stone(nx, ny) != EMPTY:
+                                            weight *= 2
+                                        
+                                        influence_sum += influence * weight
+                                        weight_sum += weight
                             
-                            new_territory_map[y, x] = new_value
+                            if weight_sum > 0:
+                                # Blend current value with weighted neighborhood influence
+                                current_weight = 0.6  # Weight for current value
+                                neighbor_weight = 0.4  # Weight for neighbors
+                                
+                                new_value = (
+                                    current_weight * territory_map[y, x] +
+                                    neighbor_weight * (influence_sum / weight_sum)
+                                )
+                                
+                                new_territory_map[y, x] = new_value
+                        else:
+                            # Original simpler influence propagation
+                            neighbors_influence = 0
+                            neighbor_count = 0
+                            
+                            for nx, ny in [(x+1, y), (x-1, y), (x, y+1), (x, y-1)]:
+                                if 0 <= nx < size and 0 <= ny < size:
+                                    neighbors_influence += territory_map[ny, nx]
+                                    neighbor_count += 1
+                            
+                            if neighbor_count > 0:
+                                # Blend current value with neighbors (weighted average)
+                                current_weight = 0.7  # Weight for current value
+                                neighbor_weight = 0.3  # Weight for neighbors' average
+                                
+                                new_value = (
+                                    current_weight * territory_map[y, x] +
+                                    neighbor_weight * (neighbors_influence / neighbor_count)
+                                )
+                                
+                                new_territory_map[y, x] = new_value
             
             territory_map = new_territory_map
         
@@ -191,40 +229,54 @@ class TerritoryEvaluator:
             EMPTY: neutral_territory
         }
     
-    def calculate_score(self, captured_stones=None):
+    def calculate_score(self, captured_stones):
         """
-        Calculate the score for each player using territory and captured stones.
+        Calculate the score for each player.
         This is a simplified scoring system (area scoring).
         
         Args:
-            captured_stones: Dictionary with the count of captured stones for each player
+            captured_stones: Dictionary with the count of captured stones by each player
         
         Returns:
             dict: Dictionary with the score for each player
         """
-        if captured_stones is None:
-            captured_stones = {BLACK: 0, WHITE: 0}
-        
         territory = self.get_territory_ownership()
+        stones = self._count_stones()
         
-        # Count stones on the board
-        black_stones = 0
-        white_stones = 0
-        
-        for y in range(self.board.size):
-            for x in range(self.board.size):
-                stone = self.board.get_stone(x, y)
-                if stone == BLACK:
-                    black_stones += 1
-                elif stone == WHITE:
-                    white_stones += 1
-        
-        # Calculate scores
-        black_score = black_stones + territory[BLACK] + captured_stones[BLACK]
-        white_score = white_stones + territory[WHITE] + captured_stones[WHITE]
+        black_score = stones[BLACK] + territory[BLACK]
+        white_score = stones[WHITE] + territory[WHITE]
         
         # Add komi (compensation for black's advantage of going first)
         # Standard komi is 6.5 points
         white_score += 6.5
         
         return {BLACK: black_score, WHITE: white_score}
+    
+    def _count_stones(self):
+        """
+        Count the number of stones of each color on the board.
+        
+        Returns:
+            dict: Dictionary with the count of stones for each color
+        """
+        black_count = 0
+        white_count = 0
+        
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                stone = self.board.get_stone(x, y)
+                if stone == BLACK:
+                    black_count += 1
+                elif stone == WHITE:
+                    white_count += 1
+        
+        return {BLACK: black_count, WHITE: white_count}
+    
+    def set_potential_territory(self, enabled):
+        """
+        Enable or disable potential territory evaluation.
+        
+        Args:
+            enabled (bool): Whether to enable potential territory evaluation
+        """
+        self.potential_territory = enabled
