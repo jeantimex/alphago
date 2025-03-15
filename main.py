@@ -14,7 +14,9 @@ from game.constants import (
     BLACK_TERRITORY, WHITE_TERRITORY, POTENTIAL_BLACK_TERRITORY, POTENTIAL_WHITE_TERRITORY,
     BLACK_TERRITORY_COLOR, WHITE_TERRITORY_COLOR, 
     POTENTIAL_BLACK_TERRITORY_COLOR, POTENTIAL_WHITE_TERRITORY_COLOR,
-    BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_MARGIN
+    BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_MARGIN,
+    TERRITORY_MARKER_SIZE_RATIO, TERRITORY_MARKER_SHAPE,
+    SLIDER_WIDTH, SLIDER_HEIGHT, MIN_TERRITORY_SIZE, MAX_TERRITORY_SIZE, DEFAULT_TERRITORY_SIZE
 )
 from game.game_state import GameState
 
@@ -26,7 +28,7 @@ def main():
     board_size_pixels = (BOARD_SIZE - 1) * CELL_SIZE  # Actual board size in pixels
     # Add extra window space for UI elements and padding
     window_width = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
-    window_height = board_size_pixels + 2 * BOARD_PADDING + 150  # Extra space for UI and territory controls
+    window_height = board_size_pixels + 2 * BOARD_PADDING + 250  # Extra space for UI and territory controls
     screen = pygame.display.set_mode((window_width, window_height))
     pygame.display.set_caption("AlphaGo Implementation")
     
@@ -45,6 +47,7 @@ def main():
     # Territory visualization flags
     show_territory = False
     show_influence = False
+    territory_size = DEFAULT_TERRITORY_SIZE
     
     # Create button for territory visualization
     territory_button = pygame.Rect(
@@ -61,6 +64,22 @@ def main():
         BUTTON_WIDTH,
         BUTTON_HEIGHT
     )
+    
+    # Create slider for territory size
+    slider_rect = pygame.Rect(
+        window_width // 2 - SLIDER_WIDTH // 2,
+        window_height - 2 * BUTTON_HEIGHT - 2 * BUTTON_MARGIN,
+        SLIDER_WIDTH,
+        SLIDER_HEIGHT
+    )
+    slider_handle_pos = int((territory_size - MIN_TERRITORY_SIZE) / (MAX_TERRITORY_SIZE - MIN_TERRITORY_SIZE) * SLIDER_WIDTH)
+    slider_handle_rect = pygame.Rect(
+        slider_rect.x + slider_handle_pos - 5,
+        slider_rect.y - 5,
+        10,
+        SLIDER_HEIGHT + 10
+    )
+    slider_dragging = False
     
     # Game loop
     running = True
@@ -84,6 +103,16 @@ def main():
                         if show_influence:
                             show_territory = False  # Turn off territory when showing influence
                     
+                    # Check if slider was clicked
+                    elif slider_rect.collidepoint(mouse_pos):
+                        slider_dragging = True
+                        # Update slider handle position
+                        slider_handle_pos = mouse_pos[0] - slider_rect.x
+                        slider_handle_pos = max(0, min(slider_handle_pos, SLIDER_WIDTH))
+                        slider_handle_rect.x = slider_rect.x + slider_handle_pos - 5
+                        # Update territory size
+                        territory_size = MIN_TERRITORY_SIZE + (slider_handle_pos / SLIDER_WIDTH) * (MAX_TERRITORY_SIZE - MIN_TERRITORY_SIZE)
+                    
                     else:
                         # Get board coordinates from mouse position
                         x, y = event.pos
@@ -97,6 +126,19 @@ def main():
                                 print(f"Stone placed at ({board_x}, {board_y})")
                             else:
                                 print(f"Invalid move at ({board_x}, {board_y})")
+            
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:  # Left mouse button
+                    slider_dragging = False
+            
+            elif event.type == pygame.MOUSEMOTION:
+                if slider_dragging:
+                    # Update slider handle position
+                    slider_handle_pos = event.pos[0] - slider_rect.x
+                    slider_handle_pos = max(0, min(slider_handle_pos, SLIDER_WIDTH))
+                    slider_handle_rect.x = slider_rect.x + slider_handle_pos - 5
+                    # Update territory size
+                    territory_size = MIN_TERRITORY_SIZE + (slider_handle_pos / SLIDER_WIDTH) * (MAX_TERRITORY_SIZE - MIN_TERRITORY_SIZE)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p:
                     # Pass turn
@@ -138,27 +180,22 @@ def main():
             for y in range(BOARD_SIZE):
                 for x in range(BOARD_SIZE):
                     territory_type = potential_territory_map[y, x]
+                    
+                    # Calculate marker size based on slider value
+                    marker_size = int(CELL_SIZE * territory_size)
+                    
+                    # Calculate position
+                    pos_x = board_x_offset + x * CELL_SIZE
+                    pos_y = board_y_offset + y * CELL_SIZE
+                    
                     if territory_type == BLACK_TERRITORY:
-                        # Create a surface with per-pixel alpha
-                        s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                        s.fill(BLACK_TERRITORY_COLOR)
-                        screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                       board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                        draw_territory_marker(screen, pos_x, pos_y, marker_size, BLACK_TERRITORY_COLOR)
                     elif territory_type == WHITE_TERRITORY:
-                        s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                        s.fill(WHITE_TERRITORY_COLOR)
-                        screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                       board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                        draw_territory_marker(screen, pos_x, pos_y, marker_size, WHITE_TERRITORY_COLOR)
                     elif territory_type == POTENTIAL_BLACK_TERRITORY:
-                        s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                        s.fill(POTENTIAL_BLACK_TERRITORY_COLOR)
-                        screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                       board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                        draw_territory_marker(screen, pos_x, pos_y, marker_size, POTENTIAL_BLACK_TERRITORY_COLOR)
                     elif territory_type == POTENTIAL_WHITE_TERRITORY:
-                        s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                        s.fill(POTENTIAL_WHITE_TERRITORY_COLOR)
-                        screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                       board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                        draw_territory_marker(screen, pos_x, pos_y, marker_size, POTENTIAL_WHITE_TERRITORY_COLOR)
         
         # Draw influence if enabled
         if show_influence and territory_data:
@@ -169,18 +206,22 @@ def main():
                 for x in range(BOARD_SIZE):
                     if board.get_stone(x, y) == EMPTY:
                         influence_value = influence_map[y, x]
+                        
+                        # Calculate marker size based on slider value
+                        marker_size = int(CELL_SIZE * territory_size)
+                        
+                        # Calculate position
+                        pos_x = board_x_offset + x * CELL_SIZE
+                        pos_y = board_y_offset + y * CELL_SIZE
+                        
                         if influence_value > 0:  # Black influence
                             intensity = min(255, int(255 * (influence_value / max_influence)))
-                            s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                            s.fill((0, 0, 0, intensity))
-                            screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                           board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                            color = (50, 50, 150, intensity)  # Blue for black influence
+                            draw_territory_marker(screen, pos_x, pos_y, marker_size, color)
                         elif influence_value < 0:  # White influence
                             intensity = min(255, int(255 * (-influence_value / max_influence)))
-                            s = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                            s.fill((255, 255, 255, intensity))
-                            screen.blit(s, (board_x_offset + x * CELL_SIZE - CELL_SIZE//2, 
-                                           board_y_offset + y * CELL_SIZE - CELL_SIZE//2))
+                            color = (150, 50, 50, intensity)  # Red for white influence
+                            draw_territory_marker(screen, pos_x, pos_y, marker_size, color)
         
         # Draw grid lines
         for i in range(BOARD_SIZE):
@@ -284,12 +325,59 @@ def main():
         if show_influence:
             pygame.draw.rect(screen, (100, 200, 100), influence_button, 3)
         
+        # Draw slider if territory or influence is shown
+        if show_territory or show_influence:
+            # Draw slider track
+            pygame.draw.rect(screen, (150, 150, 150), slider_rect)
+            pygame.draw.rect(screen, (100, 100, 100), slider_rect, 1)
+            
+            # Draw slider handle
+            pygame.draw.rect(screen, (80, 80, 80), slider_handle_rect)
+            pygame.draw.rect(screen, (0, 0, 0), slider_handle_rect, 1)
+            
+            # Draw slider label
+            slider_label = font.render("Territory Size", True, (0, 0, 0))
+            screen.blit(slider_label, (slider_rect.x + (slider_rect.width - slider_label.get_width()) // 2, 
+                                      slider_rect.y - slider_label.get_height() - 5))
+        
         # Update the display
         pygame.display.flip()
     
     # Clean up
     pygame.quit()
     sys.exit()
+
+def draw_territory_marker(screen, x, y, size, color):
+    """
+    Draw a territory marker at the specified position.
+    
+    Args:
+        screen: Pygame screen to draw on
+        x, y: Position to draw the marker
+        size: Size of the marker
+        color: Color of the marker (RGBA)
+    """
+    if TERRITORY_MARKER_SHAPE == "circle":
+        # Create a surface with per-pixel alpha
+        s = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(s, color, (size // 2, size // 2), size // 2)
+        screen.blit(s, (x - size // 2, y - size // 2))
+    elif TERRITORY_MARKER_SHAPE == "square":
+        # Create a surface with per-pixel alpha
+        s = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.rect(s, color, (0, 0, size, size))
+        screen.blit(s, (x - size // 2, y - size // 2))
+    elif TERRITORY_MARKER_SHAPE == "diamond":
+        # Create a surface with per-pixel alpha
+        s = pygame.Surface((size, size), pygame.SRCALPHA)
+        points = [
+            (size // 2, 0),
+            (size, size // 2),
+            (size // 2, size),
+            (0, size // 2)
+        ]
+        pygame.draw.polygon(s, color, points)
+        screen.blit(s, (x - size // 2, y - size // 2))
 
 if __name__ == "__main__":
     main()
