@@ -6,6 +6,7 @@ A PyGame-based implementation of the Go board game with basic game mechanics.
 
 import pygame
 import sys
+import time
 from game.board import Board
 from game.constants import BLACK, WHITE, BOARD_SIZE, CELL_SIZE, BOARD_PADDING
 from game.game_state import GameState
@@ -15,14 +16,24 @@ def main():
     pygame.init()
     
     # Set up the display
-    board_width = BOARD_SIZE * CELL_SIZE + 2 * BOARD_PADDING
-    board_height = BOARD_SIZE * CELL_SIZE + 2 * BOARD_PADDING
-    screen = pygame.display.set_mode((board_width, board_height))
+    board_size_pixels = (BOARD_SIZE - 1) * CELL_SIZE  # Actual board size in pixels
+    # Add extra window space for UI elements and padding
+    window_width = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
+    window_height = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
+    screen = pygame.display.set_mode((window_width, window_height))
     pygame.display.set_caption("AlphaGo Implementation")
+    
+    # Calculate board position to center it
+    board_x_offset = (window_width - board_size_pixels) // 2
+    board_y_offset = (window_height - board_size_pixels) // 2
     
     # Create game objects
     board = Board(BOARD_SIZE)
     game_state = GameState(board)
+    
+    # Game timer variables
+    start_time = time.time()
+    game_time = 0
     
     # Game loop
     running = True
@@ -34,8 +45,8 @@ def main():
                 if event.button == 1:  # Left mouse button
                     # Get board coordinates from mouse position
                     x, y = event.pos
-                    board_x = round((x - BOARD_PADDING) / CELL_SIZE)
-                    board_y = round((y - BOARD_PADDING) / CELL_SIZE)
+                    board_x = round((x - board_x_offset) / CELL_SIZE)
+                    board_y = round((y - board_y_offset) / CELL_SIZE)
                     
                     # Check if the coordinates are valid
                     if 0 <= board_x < BOARD_SIZE and 0 <= board_y < BOARD_SIZE:
@@ -53,7 +64,13 @@ def main():
                     # Reset game
                     board = Board(BOARD_SIZE)
                     game_state = GameState(board)
+                    start_time = time.time()  # Reset timer
                     print("Game reset")
+        
+        # Update game timer
+        game_time = int(time.time() - start_time)
+        minutes = game_time // 60
+        seconds = game_time % 60
         
         # Draw the board
         screen.fill((240, 217, 181))  # Wooden background color
@@ -64,16 +81,16 @@ def main():
             pygame.draw.line(
                 screen, 
                 (0, 0, 0), 
-                (BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING), 
-                (BOARD_PADDING + i * CELL_SIZE, BOARD_PADDING + (BOARD_SIZE - 1) * CELL_SIZE),
+                (board_x_offset + i * CELL_SIZE, board_y_offset), 
+                (board_x_offset + i * CELL_SIZE, board_y_offset + (BOARD_SIZE - 1) * CELL_SIZE),
                 2 if i == 0 or i == BOARD_SIZE - 1 else 1
             )
             # Horizontal lines
             pygame.draw.line(
                 screen, 
                 (0, 0, 0), 
-                (BOARD_PADDING, BOARD_PADDING + i * CELL_SIZE), 
-                (BOARD_PADDING + (BOARD_SIZE - 1) * CELL_SIZE, BOARD_PADDING + i * CELL_SIZE),
+                (board_x_offset, board_y_offset + i * CELL_SIZE), 
+                (board_x_offset + (BOARD_SIZE - 1) * CELL_SIZE, board_y_offset + i * CELL_SIZE),
                 2 if i == 0 or i == BOARD_SIZE - 1 else 1
             )
         
@@ -91,7 +108,7 @@ def main():
             pygame.draw.circle(
                 screen, 
                 (0, 0, 0), 
-                (BOARD_PADDING + x * CELL_SIZE, BOARD_PADDING + y * CELL_SIZE), 
+                (board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE), 
                 5
             )
         
@@ -104,15 +121,33 @@ def main():
                     pygame.draw.circle(
                         screen, 
                         color, 
-                        (BOARD_PADDING + x * CELL_SIZE, BOARD_PADDING + y * CELL_SIZE), 
+                        (board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE), 
                         CELL_SIZE // 2 - 1
                     )
         
-        # Display current player
+        # Display current player with stone icon
         font = pygame.font.SysFont('Arial', 20)
-        player_text = f"Current Player: {'Black' if game_state.current_player == BLACK else 'White'}"
+        player_text = "Current Player: "
         text_surface = font.render(player_text, True, (0, 0, 0))
-        screen.blit(text_surface, (10, 10))
+        text_width = text_surface.get_width()
+        
+        # Center the player indicator
+        player_indicator_x = window_width // 2 - text_width // 2 - 15  # Adjust for stone icon
+        screen.blit(text_surface, (player_indicator_x, 20))
+        
+        # Draw current player stone icon
+        stone_color = (0, 0, 0) if game_state.current_player == BLACK else (255, 255, 255)
+        pygame.draw.circle(
+            screen,
+            stone_color,
+            (player_indicator_x + text_width + 15, 30),  # Position after text
+            15  # Larger stone for visibility
+        )
+        
+        # Display timer in top right corner
+        timer_text = f"Time: {minutes:02d}:{seconds:02d}"
+        timer_surface = font.render(timer_text, True, (0, 0, 0))
+        screen.blit(timer_surface, (window_width - timer_surface.get_width() - 20, 20))
         
         # Update the display
         pygame.display.flip()
