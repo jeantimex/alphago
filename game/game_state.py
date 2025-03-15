@@ -3,7 +3,9 @@ Game state module for the Go game implementation.
 Manages the game flow, player turns, and game rules.
 """
 
+import numpy as np
 from .constants import BLACK, WHITE, EMPTY
+from .territory import TerritoryEvaluator
 
 class GameState:
     def __init__(self, board):
@@ -18,6 +20,7 @@ class GameState:
         self.pass_count = 0  # Count of consecutive passes
         self.move_history = []  # History of moves
         self.captured_stones = {BLACK: 0, WHITE: 0}  # Count of captured stones by each player
+        self.territory_evaluator = TerritoryEvaluator(board)  # Territory evaluator
     
     def place_stone(self, x, y):
         """
@@ -51,6 +54,9 @@ class GameState:
         captured = stones_before[opponent] - stones_after[opponent]
         if captured > 0:
             self.captured_stones[self.current_player] += captured
+        
+        # Reset territory evaluator maps
+        self.territory_evaluator = TerritoryEvaluator(self.board)
         
         # Switch player
         self.current_player = WHITE if self.current_player == BLACK else BLACK
@@ -110,78 +116,63 @@ class GameState:
         Returns:
             dict: Dictionary with the score for each player
         """
-        territory = self.calculate_territory()
-        stones = self.count_stones()
-        
-        black_score = stones[BLACK] + territory[BLACK]
-        white_score = stones[WHITE] + territory[WHITE]
-        
-        # Add komi (compensation for black's advantage of going first)
-        # Standard komi is 6.5 points
-        white_score += 6.5
-        
-        return {BLACK: black_score, WHITE: white_score}
+        return self.territory_evaluator.calculate_score(self.captured_stones)
     
-    def calculate_territory(self):
+    def evaluate_territory(self):
         """
-        Calculate the territory controlled by each player.
-        This is a simplified territory calculation.
+        Evaluate the territory control and influence on the board.
         
         Returns:
-            dict: Dictionary with the territory for each player
+            tuple: (territory_map, influence_map)
         """
-        # Create a copy of the board to mark territory
-        territory_board = self.board.board.copy()
+        return self.territory_evaluator.evaluate()
+    
+    def get_territory_ownership(self):
+        """
+        Get the territory ownership based on the influence map.
         
-        # Find empty spaces and determine which player controls them
-        black_territory = 0
-        white_territory = 0
+        Returns:
+            dict: Dictionary with counts of territory for each player and neutral
+        """
+        return self.territory_evaluator.get_territory_ownership()
+    
+    def get_detailed_territory(self):
+        """
+        Get detailed territory information including coordinates and influence values.
         
-        # For each empty intersection, check if it's surrounded by one color
+        Returns:
+            dict: Dictionary with lists of (point, influence) tuples for each player
+        """
+        # Make sure territory has been evaluated
+        if self.territory_evaluator.territory_map is None:
+            self.territory_evaluator.evaluate()
+        
+        black_territory = []
+        white_territory = []
+        
         for y in range(self.board.size):
             for x in range(self.board.size):
-                if territory_board[y, x] == EMPTY:
-                    # Check if this empty space is territory
-                    surrounded_by = self.check_surrounded_by(x, y)
-                    if surrounded_by == BLACK:
-                        black_territory += 1
-                    elif surrounded_by == WHITE:
-                        white_territory += 1
+                if self.board.get_stone(x, y) == EMPTY:
+                    influence = self.territory_evaluator.territory_map[y, x]
+                    if influence > 0.5:  # Black territory
+                        black_territory.append(((x, y), influence))
+                    elif influence < -0.5:  # White territory
+                        white_territory.append(((x, y), influence))
         
-        return {BLACK: black_territory, WHITE: white_territory}
+        return {
+            'black': black_territory,
+            'white': white_territory
+        }
     
-    def check_surrounded_by(self, x, y):
-        """
-        Check if an empty intersection is surrounded by stones of one color.
-        
-        Args:
-            x (int): X coordinate
-            y (int): Y coordinate
-        
-        Returns:
-            int: BLACK if surrounded by black, WHITE if surrounded by white, 
-                 EMPTY if not surrounded or surrounded by both colors
-        """
-        # This is a simplified version that just checks immediate neighbors
-        # A more accurate version would use flood fill to find connected empty spaces
-        black_count = 0
-        white_count = 0
-        
-        for nx, ny in [(x+1, y), (x-1, y), (x, y+1), (x, y-1)]:
-            if 0 <= nx < self.board.size and 0 <= ny < self.board.size:
-                stone = self.board.get_stone(nx, ny)
-                if stone == BLACK:
-                    black_count += 1
-                elif stone == WHITE:
-                    white_count += 1
-        
-        # If all neighbors are of one color, it's territory of that color
-        if black_count > 0 and white_count == 0:
-            return BLACK
-        elif white_count > 0 and black_count == 0:
-            return WHITE
-        else:
-            return EMPTY
+    @property
+    def territory_map(self):
+        """Get the territory map from the evaluator."""
+        return self.territory_evaluator.territory_map
+    
+    @property
+    def influence_map(self):
+        """Get the influence map from the evaluator."""
+        return self.territory_evaluator.influence_map
     
     def current_player_name(self):
         """
