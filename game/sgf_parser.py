@@ -125,30 +125,29 @@ class SGFParser:
         Args:
             game_tree (str): SGF game tree content
         """
-        # Find all move nodes (starting with ;)
-        nodes = game_tree.split(';')
+        # Find all move commands (B[xx] for black, W[xx] for white)
+        move_pattern = r'([BW])\[([a-z]{0,2})\]'
+        moves = re.findall(move_pattern, game_tree)
         
-        # Skip the first node (it contains the header properties)
-        for node in nodes[1:]:
-            # Look for B or W moves
-            b_move = re.search(r'B\[(.*?)\]', node)
-            w_move = re.search(r'W\[(.*?)\]', node)
+        self.moves = []
+        for color_code, pos in moves:
+            # Convert color code to our constants
+            color = BLACK if color_code == 'B' else WHITE
             
-            if b_move:
-                pos = b_move.group(1)
-                if pos:  # Not a pass
-                    x, y = self._sgf_pos_to_coords(pos)
-                    self.moves.append(('B', x, y))
-                else:  # Pass
-                    self.moves.append(('B', None, None))
+            # Handle pass moves (empty position)
+            if not pos:
+                self.moves.append((None, None, color))
+                continue
             
-            if w_move:
-                pos = w_move.group(1)
-                if pos:  # Not a pass
-                    x, y = self._sgf_pos_to_coords(pos)
-                    self.moves.append(('W', x, y))
-                else:  # Pass
-                    self.moves.append(('W', None, None))
+            # Convert SGF position to board coordinates
+            x, y = self._sgf_pos_to_coords(pos)
+            
+            # Skip invalid coordinates
+            if x is None or y is None or x >= self.board_size or y >= self.board_size:
+                print(f"Warning: Invalid move position {pos} ({x}, {y})")
+                continue
+                
+            self.moves.append((x, y, color))
     
     def _sgf_pos_to_coords(self, pos):
         """

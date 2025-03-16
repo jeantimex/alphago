@@ -210,9 +210,38 @@ class Board:
     
     def clear(self):
         """
-        Clear the board.
+        Clear the board by removing all stones.
         """
         self.board = np.zeros((self.size, self.size), dtype=int)
         self.last_board_state = None
         self.previous_board_states = []
         self.ko_position = None
+        
+    def copy(self):
+        """
+        Create a deep copy of the board.
+        
+        Returns:
+            Board: A new board instance with the same state
+        """
+        new_board = Board(self.size)
+        new_board.board = self.board.copy()
+        if self.last_board_state is not None:
+            new_board.last_board_state = self.last_board_state.copy()
+        
+        # Handle previous_board_states which might contain bytes objects
+        new_board.previous_board_states = []
+        for state in self.previous_board_states:
+            if isinstance(state, np.ndarray):
+                new_board.previous_board_states.append(state.copy())
+            elif isinstance(state, bytes):
+                new_board.previous_board_states.append(state)
+            else:
+                # For other types, try to copy if possible, otherwise use the original
+                try:
+                    new_board.previous_board_states.append(state.copy())
+                except (AttributeError, TypeError):
+                    new_board.previous_board_states.append(state)
+        
+        new_board.ko_position = self.ko_position
+        return new_board

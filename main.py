@@ -54,101 +54,100 @@ def draw_territory_marker(screen, x, y, size, color):
 
 def draw_statistics_button(screen, button, show_influence):
     """Draw the statistics button with appropriate colors based on state"""
-    if show_influence:
-        pygame.draw.rect(screen, (100, 100, 200), button)  # Highlighted when active
-    else:
-        pygame.draw.rect(screen, (200, 200, 200), button)  # Gray when inactive
-    
-    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
-    
-    # Draw button text
+    color = (180, 180, 220) if show_influence else (200, 200, 200)
+    pygame.draw.rect(screen, color, button)
     font = pygame.font.Font(None, 24)
     text = font.render("Statistics", True, (0, 0, 0))
-    text_rect = text.get_rect(center=button.center)
-    screen.blit(text, text_rect)
+    screen.blit(text, (button.centerx - text.get_width() // 2, button.centery - text.get_height() // 2))
 
 def draw_load_game_button(screen, button):
     """Draw the load game button"""
-    pygame.draw.rect(screen, (200, 200, 200), button)  # Gray background
-    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
-    
-    # Draw button text
+    pygame.draw.rect(screen, (200, 200, 200), button)
     font = pygame.font.Font(None, 24)
-    text = font.render("Load game", True, (0, 0, 0))
-    text_rect = text.get_rect(center=button.center)
-    screen.blit(text, text_rect)
+    text = font.render("Load Game", True, (0, 0, 0))
+    screen.blit(text, (button.centerx - text.get_width() // 2, button.centery - text.get_height() // 2))
 
 def draw_move_numbers_button(screen, button, show_move_numbers):
     """Draw the move numbers button with appropriate colors based on state"""
-    if show_move_numbers:
-        pygame.draw.rect(screen, (100, 200, 100), button)  # Highlighted when active
-    else:
-        pygame.draw.rect(screen, (200, 200, 200), button)  # Gray when inactive
-    
-    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
-    
-    # Draw button text
+    color = (180, 180, 220) if show_move_numbers else (200, 200, 200)
+    pygame.draw.rect(screen, color, button)
     font = pygame.font.Font(None, 24)
     text = font.render("Move Numbers", True, (0, 0, 0))
-    text_rect = text.get_rect(center=button.center)
-    screen.blit(text, text_rect)
+    screen.blit(text, (button.centerx - text.get_width() // 2, button.centery - text.get_height() // 2))
+
+def draw_navigation_button(screen, button, text, enabled):
+    """Draw a navigation button (previous/next) with appropriate colors based on state"""
+    color = (200, 200, 200) if enabled else (150, 150, 150)
+    pygame.draw.rect(screen, color, button)
+    font = pygame.font.Font(None, 24)
+    text_surface = font.render(text, True, (0, 0, 0) if enabled else (100, 100, 100))
+    screen.blit(text_surface, (button.centerx - text_surface.get_width() // 2, button.centery - text_surface.get_height() // 2))
+    
+    # Draw a border around the button
+    pygame.draw.rect(screen, (0, 0, 0), button, 2)
 
 class SimpleFileDialog:
     """A simple file dialog implementation using pygame"""
     
-    def __init__(self, screen, title="Select a file", start_dir=None, file_extension=".sgf"):
+    def __init__(self, screen, title, start_dir, filter_ext=None):
         self.screen = screen
         self.title = title
-        self.file_extension = file_extension
-        
-        # Start in the current program directory if not specified
-        if start_dir is None:
-            self.current_dir = os.path.dirname(os.path.abspath(__file__))
-        else:
-            self.current_dir = start_dir
-            
-        # UI settings
+        self.current_dir = start_dir
+        self.filter_ext = filter_ext
         self.font = pygame.font.Font(None, 24)
-        self.title_font = pygame.font.Font(None, 32)
-        self.bg_color = (240, 240, 240)
-        self.text_color = (0, 0, 0)
-        self.highlight_color = (200, 200, 255)
-        self.border_color = (100, 100, 100)
-        
-        # File list state
+        self.title_font = pygame.font.Font(None, 36)
         self.files = []
         self.selected_index = 0
         self.scroll_offset = 0
-        self.max_visible_items = 15
+        self.max_items = 15
+        self.load_files()
         
-        # Get initial file list
-        self.update_file_list()
+        # Dialog dimensions
+        self.width = 600
+        self.height = 500
+        self.x = (screen.get_width() - self.width) // 2
+        self.y = (screen.get_height() - self.height) // 2
+        
+        # Buttons
+        button_width = 100
+        button_height = 40
+        button_margin = 20
+        self.cancel_button = pygame.Rect(
+            self.x + self.width - button_width - button_margin,
+            self.y + self.height - button_height - button_margin,
+            button_width,
+            button_height
+        )
+        self.select_button = pygame.Rect(
+            self.x + self.width - 2 * button_width - 2 * button_margin,
+            self.y + self.height - button_height - button_margin,
+            button_width,
+            button_height
+        )
     
-    def update_file_list(self):
-        """Update the list of files and directories in the current directory"""
+    def load_files(self):
+        """Load files and directories from the current directory"""
         self.files = []
         
         # Add parent directory option
         self.files.append(("..", True))
         
         try:
-            # Get all files and directories in the current directory
+            # List all files and directories
             for item in os.listdir(self.current_dir):
                 full_path = os.path.join(self.current_dir, item)
                 is_dir = os.path.isdir(full_path)
                 
-                # Only include directories and files with the specified extension
-                if is_dir or (not is_dir and item.lower().endswith(self.file_extension)):
-                    self.files.append((item, is_dir))
+                # Filter files by extension if specified
+                if not is_dir and self.filter_ext and not item.lower().endswith(self.filter_ext.lower()):
+                    continue
+                
+                self.files.append((item, is_dir))
             
             # Sort directories first, then files
             self.files.sort(key=lambda x: (not x[1], x[0].lower()))
-            
-            # Reset selection and scroll
-            self.selected_index = 0
-            self.scroll_offset = 0
         except Exception as e:
-            print(f"Error reading directory: {e}")
+            print(f"Error loading files: {e}")
     
     def handle_event(self, event):
         """Handle pygame events for the file dialog"""
@@ -161,8 +160,8 @@ class SimpleFileDialog:
             elif event.key == pygame.K_DOWN:
                 self.selected_index = min(len(self.files) - 1, self.selected_index + 1)
                 # Adjust scroll if needed
-                if self.selected_index >= self.scroll_offset + self.max_visible_items:
-                    self.scroll_offset = self.selected_index - self.max_visible_items + 1
+                if self.selected_index >= self.scroll_offset + self.max_items:
+                    self.scroll_offset = self.selected_index - self.max_items + 1
             elif event.key == pygame.K_RETURN:
                 # Handle selection
                 if self.selected_index < len(self.files):
@@ -174,7 +173,7 @@ class SimpleFileDialog:
                             self.current_dir = os.path.dirname(self.current_dir)
                         else:
                             self.current_dir = os.path.join(self.current_dir, item)
-                        self.update_file_list()
+                        self.load_files()
                         return None
                     else:
                         # Return the selected file path
@@ -205,7 +204,7 @@ class SimpleFileDialog:
                                     self.current_dir = os.path.dirname(self.current_dir)
                                 else:
                                     self.current_dir = os.path.join(self.current_dir, item)
-                                self.update_file_list()
+                                self.load_files()
                                 return None
                             else:
                                 # Return the selected file path
@@ -218,7 +217,7 @@ class SimpleFileDialog:
                 self.scroll_offset = max(0, self.scroll_offset - 1)
             elif event.button == 5:  # Mouse wheel down
                 self.scroll_offset = min(
-                    max(0, len(self.files) - self.max_visible_items),
+                    max(0, len(self.files) - self.max_items),
                     self.scroll_offset + 1
                 )
         
@@ -227,24 +226,24 @@ class SimpleFileDialog:
     def draw(self):
         """Draw the file dialog"""
         # Draw background
-        self.screen.fill(self.bg_color)
+        self.screen.fill((240, 240, 240))
         
         # Draw title
-        title_surf = self.title_font.render(self.title, True, self.text_color)
+        title_surf = self.title_font.render(self.title, True, (0, 0, 0))
         self.screen.blit(title_surf, (20, 10))
         
         # Draw current directory
-        dir_surf = self.font.render(f"Directory: {self.current_dir}", True, self.text_color)
+        dir_surf = self.font.render(f"Directory: {self.current_dir}", True, (0, 0, 0))
         self.screen.blit(dir_surf, (20, 40))
         
         # Draw separator line
-        pygame.draw.line(self.screen, self.border_color, (0, 60), (self.screen.get_width(), 60), 2)
+        pygame.draw.line(self.screen, (100, 100, 100), (0, 60), (self.screen.get_width(), 60), 2)
         
         # Draw file list
         item_height = 30
         visible_range = range(
             self.scroll_offset,
-            min(len(self.files), self.scroll_offset + self.max_visible_items)
+            min(len(self.files), self.scroll_offset + self.max_items)
         )
         
         for i, idx in enumerate(visible_range):
@@ -255,7 +254,7 @@ class SimpleFileDialog:
             if idx == self.selected_index:
                 pygame.draw.rect(
                     self.screen,
-                    self.highlight_color,
+                    (200, 200, 255),
                     (0, y_pos, self.screen.get_width(), item_height)
                 )
             
@@ -265,14 +264,14 @@ class SimpleFileDialog:
             else:
                 item_text = f"📄 {item}"
             
-            text_surf = self.font.render(item_text, True, self.text_color)
+            text_surf = self.font.render(item_text, True, (0, 0, 0))
             self.screen.blit(text_surf, (20, y_pos + 5))
         
         # Draw scrollbar if needed
-        if len(self.files) > self.max_visible_items:
+        if len(self.files) > self.max_items:
             scrollbar_height = self.screen.get_height() - 60
-            thumb_size = scrollbar_height * min(1.0, self.max_visible_items / len(self.files))
-            thumb_pos = 60 + (scrollbar_height - thumb_size) * (self.scroll_offset / max(1, len(self.files) - self.max_visible_items))
+            thumb_size = scrollbar_height * min(1.0, self.max_items / len(self.files))
+            thumb_pos = 60 + (scrollbar_height - thumb_size) * (self.scroll_offset / max(1, len(self.files) - self.max_items))
             
             # Draw scrollbar background
             pygame.draw.rect(
@@ -290,51 +289,79 @@ class SimpleFileDialog:
         
         # Draw instructions
         instructions = "Use arrow keys to navigate, Enter to select, Escape to cancel"
-        instr_surf = self.font.render(instructions, True, self.text_color)
+        instr_surf = self.font.render(instructions, True, (0, 0, 0))
         self.screen.blit(
             instr_surf,
             (20, self.screen.get_height() - 30)
         )
         
+        # Draw buttons
+        pygame.draw.rect(self.screen, (200, 200, 200), self.cancel_button)
+        pygame.draw.rect(self.screen, (200, 200, 200), self.select_button)
+        font = pygame.font.Font(None, 24)
+        cancel_text = font.render("Cancel", True, (0, 0, 0))
+        select_text = font.render("Select", True, (0, 0, 0))
+        self.screen.blit(cancel_text, (self.cancel_button.centerx - cancel_text.get_width() // 2, self.cancel_button.centery - cancel_text.get_height() // 2))
+        self.screen.blit(select_text, (self.select_button.centerx - select_text.get_width() // 2, self.select_button.centery - select_text.get_height() // 2))
+        
         pygame.display.flip()
 
+    def show(self):
+        """
+        Show the file dialog and return the selected file path.
+        Returns:
+            str or None: The selected file path, or None if canceled
+        """
+        running = True
+        selected_file = None
+        
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    selected_file = None
+                
+                result = self.handle_event(event)
+                if result is not None:
+                    running = False
+                    selected_file = result
+            
+            self.draw()
+            pygame.time.delay(10)  # Small delay to reduce CPU usage
+        
+        return selected_file
+
 def load_sgf_file(screen):
-    """
-    Open a file dialog to select an SGF file using the pygame-native approach
-    Returns the file path if a file was selected, None otherwise
-    """
-    # Store the original screen state
-    original_screen_copy = screen.copy()
+    """Show a file dialog to select an SGF file"""
+    # Save the current screen state
+    old_screen = screen.copy()
     
-    # Create a temporary screen for the file dialog
-    dialog_screen = pygame.display.set_mode((600, 500))
+    # Create a new screen for the dialog
+    dialog_screen = pygame.display.set_mode((800, 600))
     pygame.display.set_caption("Select SGF File")
     
     # Create and run the file dialog
-    file_dialog = SimpleFileDialog(dialog_screen, title="Select SGF File", file_extension=".sgf")
+    file_dialog = SimpleFileDialog(dialog_screen, title="Select SGF File", start_dir=os.getcwd(), filter_ext=".sgf")
     
     running = True
     selected_file = None
     
     while running:
-        file_dialog.draw()
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                selected_file = None
-            else:
-                result = file_dialog.handle_event(event)
-                if result is not None:
-                    running = False
-                    selected_file = result if result is not False else None
+                selected_file = False  # Cancel
+            
+            result = file_dialog.handle_event(event)
+            if result is not None:
+                running = False
+                selected_file = result
         
-        pygame.time.delay(10)  # Small delay to reduce CPU usage
+        file_dialog.draw()
     
     # Restore the original screen
-    screen_size = original_screen_copy.get_size()
-    screen = pygame.display.set_mode(screen_size)
-    screen.blit(original_screen_copy, (0, 0))
+    screen = pygame.display.set_mode((screen.get_width(), screen.get_height()))
+    screen.blit(old_screen, (0, 0))
     pygame.display.flip()
     
     return selected_file
@@ -400,211 +427,6 @@ def load_game_from_sgf(file_path, board, game_state):
     
     return True
 
-class SimpleFileDialog:
-    """A simple file dialog implementation using pygame"""
-    
-    def __init__(self, screen, title="Select a file", start_dir=None, file_extension=".sgf"):
-        self.screen = screen
-        self.title = title
-        self.file_extension = file_extension
-        
-        # Start in the current program directory if not specified
-        if start_dir is None:
-            self.current_dir = os.path.dirname(os.path.abspath(__file__))
-        else:
-            self.current_dir = start_dir
-            
-        # UI settings
-        self.font = pygame.font.Font(None, 24)
-        self.title_font = pygame.font.Font(None, 32)
-        self.bg_color = (240, 240, 240)
-        self.text_color = (0, 0, 0)
-        self.highlight_color = (200, 200, 255)
-        self.border_color = (100, 100, 100)
-        
-        # File list state
-        self.files = []
-        self.selected_index = 0
-        self.scroll_offset = 0
-        self.max_visible_items = 15
-        
-        # Get initial file list
-        self.update_file_list()
-    
-    def update_file_list(self):
-        """Update the list of files and directories in the current directory"""
-        self.files = []
-        
-        # Add parent directory option
-        self.files.append(("..", True))
-        
-        try:
-            # Get all files and directories in the current directory
-            for item in os.listdir(self.current_dir):
-                full_path = os.path.join(self.current_dir, item)
-                is_dir = os.path.isdir(full_path)
-                
-                # Only include directories and files with the specified extension
-                if is_dir or (not is_dir and item.lower().endswith(self.file_extension)):
-                    self.files.append((item, is_dir))
-            
-            # Sort directories first, then files
-            self.files.sort(key=lambda x: (not x[1], x[0].lower()))
-            
-            # Reset selection and scroll
-            self.selected_index = 0
-            self.scroll_offset = 0
-        except Exception as e:
-            print(f"Error reading directory: {e}")
-    
-    def handle_event(self, event):
-        """Handle pygame events for the file dialog"""
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                self.selected_index = max(0, self.selected_index - 1)
-                # Adjust scroll if needed
-                if self.selected_index < self.scroll_offset:
-                    self.scroll_offset = self.selected_index
-            elif event.key == pygame.K_DOWN:
-                self.selected_index = min(len(self.files) - 1, self.selected_index + 1)
-                # Adjust scroll if needed
-                if self.selected_index >= self.scroll_offset + self.max_visible_items:
-                    self.scroll_offset = self.selected_index - self.max_visible_items + 1
-            elif event.key == pygame.K_RETURN:
-                # Handle selection
-                if self.selected_index < len(self.files):
-                    item, is_dir = self.files[self.selected_index]
-                    
-                    if is_dir:
-                        # Navigate to directory
-                        if item == "..":
-                            self.current_dir = os.path.dirname(self.current_dir)
-                        else:
-                            self.current_dir = os.path.join(self.current_dir, item)
-                        self.update_file_list()
-                        return None
-                    else:
-                        # Return the selected file path
-                        return os.path.join(self.current_dir, item)
-            elif event.key == pygame.K_ESCAPE:
-                # Cancel selection
-                return False
-        
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Left click
-                # Calculate which item was clicked
-                mouse_y = event.pos[1]
-                item_height = 30
-                header_height = 60
-                
-                # Check if click is in the file list area
-                if mouse_y > header_height:
-                    clicked_index = self.scroll_offset + (mouse_y - header_height) // item_height
-                    
-                    if 0 <= clicked_index < len(self.files):
-                        if clicked_index == self.selected_index:
-                            # Double-click handling (simplified)
-                            item, is_dir = self.files[self.selected_index]
-                            
-                            if is_dir:
-                                # Navigate to directory
-                                if item == "..":
-                                    self.current_dir = os.path.dirname(self.current_dir)
-                                else:
-                                    self.current_dir = os.path.join(self.current_dir, item)
-                                self.update_file_list()
-                                return None
-                            else:
-                                # Return the selected file path
-                                return os.path.join(self.current_dir, item)
-                        else:
-                            # Single click - update selection
-                            self.selected_index = clicked_index
-            
-            elif event.button == 4:  # Mouse wheel up
-                self.scroll_offset = max(0, self.scroll_offset - 1)
-            elif event.button == 5:  # Mouse wheel down
-                self.scroll_offset = min(
-                    max(0, len(self.files) - self.max_visible_items),
-                    self.scroll_offset + 1
-                )
-        
-        return None
-    
-    def draw(self):
-        """Draw the file dialog"""
-        # Draw background
-        self.screen.fill(self.bg_color)
-        
-        # Draw title
-        title_surf = self.title_font.render(self.title, True, self.text_color)
-        self.screen.blit(title_surf, (20, 10))
-        
-        # Draw current directory
-        dir_surf = self.font.render(f"Directory: {self.current_dir}", True, self.text_color)
-        self.screen.blit(dir_surf, (20, 40))
-        
-        # Draw separator line
-        pygame.draw.line(self.screen, self.border_color, (0, 60), (self.screen.get_width(), 60), 2)
-        
-        # Draw file list
-        item_height = 30
-        visible_range = range(
-            self.scroll_offset,
-            min(len(self.files), self.scroll_offset + self.max_visible_items)
-        )
-        
-        for i, idx in enumerate(visible_range):
-            item, is_dir = self.files[idx]
-            y_pos = 60 + i * item_height
-            
-            # Highlight selected item
-            if idx == self.selected_index:
-                pygame.draw.rect(
-                    self.screen,
-                    self.highlight_color,
-                    (0, y_pos, self.screen.get_width(), item_height)
-                )
-            
-            # Draw item text
-            if is_dir:
-                item_text = f"📁 {item}"
-            else:
-                item_text = f"📄 {item}"
-            
-            text_surf = self.font.render(item_text, True, self.text_color)
-            self.screen.blit(text_surf, (20, y_pos + 5))
-        
-        # Draw scrollbar if needed
-        if len(self.files) > self.max_visible_items:
-            scrollbar_height = self.screen.get_height() - 60
-            thumb_size = scrollbar_height * min(1.0, self.max_visible_items / len(self.files))
-            thumb_pos = 60 + (scrollbar_height - thumb_size) * (self.scroll_offset / max(1, len(self.files) - self.max_visible_items))
-            
-            # Draw scrollbar background
-            pygame.draw.rect(
-                self.screen,
-                (220, 220, 220),
-                (self.screen.get_width() - 20, 60, 20, scrollbar_height)
-            )
-            
-            # Draw scrollbar thumb
-            pygame.draw.rect(
-                self.screen,
-                (180, 180, 180),
-                (self.screen.get_width() - 20, thumb_pos, 20, thumb_size)
-            )
-        
-        # Draw instructions
-        instructions = "Use arrow keys to navigate, Enter to select, Escape to cancel"
-        instr_surf = self.font.render(instructions, True, self.text_color)
-        self.screen.blit(
-            instr_surf,
-            (20, self.screen.get_height() - 30)
-        )
-        
-        pygame.display.flip()
-
 def main():
     # Initialize pygame
     pygame.init()
@@ -627,17 +449,16 @@ def main():
     board = Board(BOARD_SIZE)
     game_state = GameState(board)
     
+    # Game state navigation variables
+    current_move_index = 0
+    # Store the initial empty board state
+    game_states = [(board.copy(), [])]
+    
     # Territory visualization flags
     show_territory = False  # Don't show territory by default
     show_influence = False  # Don't show influence by default
     show_move_numbers = False  # Don't show move numbers by default
     territory_size = 0.6  # Fixed size for territory markers
-    
-    # Define colors
-    BLACK_COLOR = (0, 0, 0)
-    WHITE_COLOR = (255, 255, 255)
-    BOARD_COLOR = (219, 179, 107)  # Tan color for the board
-    STONE_RADIUS = CELL_SIZE // 2 - 1
     
     # Create button for influence visualization
     statistics_button = pygame.Rect(
@@ -663,6 +484,35 @@ def main():
         40
     )
     
+    # Create navigation buttons (previous and next)
+    nav_button_width = 60
+    nav_button_height = 40
+    nav_button_y = window_height - 120  # Position above the other buttons
+    
+    # Center the navigation buttons horizontally
+    nav_buttons_total_width = 2 * nav_button_width + 20  # 20px spacing between buttons
+    nav_buttons_start_x = (window_width - nav_buttons_total_width) // 2
+    
+    previous_button = pygame.Rect(
+        nav_buttons_start_x,
+        nav_button_y,
+        nav_button_width,
+        nav_button_height
+    )
+    
+    next_button = pygame.Rect(
+        nav_buttons_start_x + nav_button_width + 20,  # 20px spacing
+        nav_button_y,
+        nav_button_width,
+        nav_button_height
+    )
+    
+    # Define colors
+    BLACK_COLOR = (0, 0, 0)
+    WHITE_COLOR = (255, 255, 255)
+    BOARD_COLOR = (219, 179, 107)  # Tan color for the board
+    STONE_RADIUS = CELL_SIZE // 2 - 1
+    
     # Game loop
     running = True
     while running:
@@ -681,19 +531,102 @@ def main():
                     # Check if load game button was clicked
                     elif load_game_button.collidepoint(mouse_pos):
                         print("Load game button clicked")
-                        # Open file dialog to select SGF file
-                        sgf_file_path = load_sgf_file(screen)
-                        if sgf_file_path:
-                            print(f"Selected SGF file: {sgf_file_path}")
-                            # Load the game from the SGF file
-                            if load_game_from_sgf(sgf_file_path, board, game_state):
-                                print("Game loaded successfully")
+                        # Create and show file dialog
+                        file_dialog = SimpleFileDialog(screen, "Load SGF File", os.getcwd(), filter_ext=".sgf")
+                        sgf_file = file_dialog.show()
+                        
+                        if sgf_file:
+                            print(f"Loading game from {sgf_file}")
+                            # Parse SGF file
+                            parser = SGFParser()
+                            game_info = parser.parse_file(sgf_file)
+                            
+                            if game_info and 'moves' in game_info:
+                                print(f"Successfully parsed SGF with {len(game_info['moves'])} moves")
+                                
+                                # Reset the game
+                                board = Board(BOARD_SIZE)
+                                game_state = GameState(board)
+                                
+                                # Reset game states for navigation
+                                game_states = [(board.copy(), [])]
+                                current_move_index = 0
+                                
+                                # Apply moves from SGF
+                                for move in game_info['moves']:
+                                    x, y, color = move
+                                    if x is not None and y is not None:  # Skip pass moves
+                                        # Set the current player to match the SGF move color
+                                        game_state.current_player = color
+                                        
+                                        # Place the stone
+                                        if game_state.place_stone(x, y):
+                                            # Add the new board state and move history to game_states
+                                            game_states.append((board.copy(), game_state.move_history[:]))
+                                            current_move_index = len(game_states) - 1
+                                
+                                print(f"Game loaded with {len(game_info['moves'])} moves")
+                                print(f"Created {len(game_states)} game states for navigation")
+                                
+                                # Debug the game states
+                                for i, (b, m) in enumerate(game_states):
+                                    print(f"  State {i}: Board has {np.count_nonzero(b.board)} stones, {len(m)} moves in history")
                             else:
-                                print("Failed to load game")
+                                print("Failed to parse SGF file or no moves found")
                     
                     # Check if move numbers button was clicked
                     elif move_numbers_button.collidepoint(mouse_pos):
                         show_move_numbers = not show_move_numbers
+                    
+                    # Check if previous button was clicked
+                    elif previous_button.collidepoint(mouse_pos) and current_move_index > 0:
+                        current_move_index -= 1
+                        print(f"Moving to previous state {current_move_index} of {len(game_states)-1}")
+                        
+                        # Restore previous board state
+                        prev_board, prev_history = game_states[current_move_index]
+                        # We need to copy the board's internal state
+                        board.board = prev_board.board.copy()
+                        board.last_board_state = prev_board.last_board_state.copy() if prev_board.last_board_state is not None else None
+                        board.previous_board_states = [s.copy() if isinstance(s, np.ndarray) else s for s in prev_board.previous_board_states]
+                        board.ko_position = prev_board.ko_position
+                        
+                        # Update game state
+                        game_state.move_history = prev_history[:]
+                        
+                        # Set current player based on the last move
+                        if prev_history:
+                            last_player = prev_history[-1][2]
+                            game_state.current_player = WHITE if last_player == BLACK else BLACK
+                        else:
+                            game_state.current_player = BLACK  # Default to BLACK for first move
+                        
+                        print(f"Moved to previous state (move {current_move_index})")
+                    
+                    # Check if next button was clicked
+                    elif next_button.collidepoint(mouse_pos) and current_move_index < len(game_states) - 1:
+                        current_move_index += 1
+                        print(f"Moving to next state {current_move_index} of {len(game_states)-1}")
+                        
+                        # Restore next board state
+                        next_board, next_history = game_states[current_move_index]
+                        # We need to copy the board's internal state
+                        board.board = next_board.board.copy()
+                        board.last_board_state = next_board.last_board_state.copy() if next_board.last_board_state is not None else None
+                        board.previous_board_states = [s.copy() if isinstance(s, np.ndarray) else s for s in next_board.previous_board_states]
+                        board.ko_position = next_board.ko_position
+                        
+                        # Update game state
+                        game_state.move_history = next_history[:]
+                        
+                        # Set current player based on the last move
+                        if next_history:
+                            last_player = next_history[-1][2]
+                            game_state.current_player = WHITE if last_player == BLACK else BLACK
+                        else:
+                            game_state.current_player = BLACK  # Default to BLACK for first move
+                        
+                        print(f"Moved to next state (move {current_move_index})")
                     
                     else:
                         # Get board coordinates from mouse position
@@ -706,23 +639,104 @@ def main():
                             # Try to place a stone
                             if game_state.place_stone(board_x, board_y):
                                 print(f"Stone placed at ({board_x}, {board_y})")
+                                
+                                # If we're not at the end of the game states list,
+                                # truncate the list to the current position
+                                if current_move_index < len(game_states) - 1:
+                                    print(f"Truncating future states. Before: {len(game_states)}, Current index: {current_move_index}")
+                                    game_states = game_states[:current_move_index + 1]
+                                    print(f"After truncation: {len(game_states)} states")
+                                
+                                # Add the new board state and move history
+                                new_board_copy = board.copy()
+                                new_move_history = game_state.move_history[:]
+                                game_states.append((new_board_copy, new_move_history))
+                                current_move_index = len(game_states) - 1
+                                print(f"Added new game state. Total states: {len(game_states)}, Current index: {current_move_index}")
+                                
+                                # Debug the game states
+                                for i, (b, m) in enumerate(game_states):
+                                    print(f"  State {i}: Board has {np.count_nonzero(b.board)} stones, {len(m)} moves in history")
                             else:
                                 print(f"Invalid move at ({board_x}, {board_y})")
             
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p:
                     # Pass turn
+                    print("Pass")
                     game_state.pass_turn()
                     print(f"{game_state.current_player_name()} passed")
+                    
+                    # If we're not at the end of the game states list,
+                    # truncate the list to the current position
+                    if current_move_index < len(game_states) - 1:
+                        game_states = game_states[:current_move_index + 1]
+                    
+                    # Add the new board state and move history
+                    game_states.append((board.copy(), game_state.move_history[:]))
+                    current_move_index = len(game_states) - 1
                 elif event.key == pygame.K_r:
                     # Reset game
                     board = Board(BOARD_SIZE)
                     game_state = GameState(board)
+                    # Reset game state navigation
+                    game_states = [(board.copy(), [])]
+                    current_move_index = 0
                     print("Game reset")
                 elif event.key == pygame.K_i:
                     # Toggle influence visualization
                     show_influence = not show_influence
                     # Don't toggle territory when toggling influence
+                elif event.key == pygame.K_LEFT:
+                    # Previous move
+                    if current_move_index > 0:
+                        current_move_index -= 1
+                        print(f"Moving to previous state {current_move_index} of {len(game_states)-1}")
+                        
+                        # Restore previous board state
+                        prev_board, prev_history = game_states[current_move_index]
+                        # We need to copy the board's internal state
+                        board.board = prev_board.board.copy()
+                        board.last_board_state = prev_board.last_board_state.copy() if prev_board.last_board_state is not None else None
+                        board.previous_board_states = [s.copy() if isinstance(s, np.ndarray) else s for s in prev_board.previous_board_states]
+                        board.ko_position = prev_board.ko_position
+                        
+                        # Update game state
+                        game_state.move_history = prev_history[:]
+                        
+                        # Set current player based on the last move
+                        if prev_history:
+                            last_player = prev_history[-1][2]
+                            game_state.current_player = WHITE if last_player == BLACK else BLACK
+                        else:
+                            game_state.current_player = BLACK  # Default to BLACK for first move
+                        
+                        print(f"Moved to previous state (move {current_move_index})")
+                elif event.key == pygame.K_RIGHT:
+                    # Next move
+                    if current_move_index < len(game_states) - 1:
+                        current_move_index += 1
+                        print(f"Moving to next state {current_move_index} of {len(game_states)-1}")
+                        
+                        # Restore next board state
+                        next_board, next_history = game_states[current_move_index]
+                        # We need to copy the board's internal state
+                        board.board = next_board.board.copy()
+                        board.last_board_state = next_board.last_board_state.copy() if next_board.last_board_state is not None else None
+                        board.previous_board_states = [s.copy() if isinstance(s, np.ndarray) else s for s in next_board.previous_board_states]
+                        board.ko_position = next_board.ko_position
+                        
+                        # Update game state
+                        game_state.move_history = next_history[:]
+                        
+                        # Set current player based on the last move
+                        if next_history:
+                            last_player = next_history[-1][2]
+                            game_state.current_player = WHITE if last_player == BLACK else BLACK
+                        else:
+                            game_state.current_player = BLACK  # Default to BLACK for first move
+                        
+                        print(f"Moved to next state (move {current_move_index})")
         
         # Draw the board
         screen.fill(BOARD_COLOR)  # Wooden background color
@@ -898,6 +912,13 @@ def main():
         draw_statistics_button(screen, statistics_button, show_influence)
         draw_load_game_button(screen, load_game_button)
         draw_move_numbers_button(screen, move_numbers_button, show_move_numbers)
+        
+        # Draw navigation buttons
+        has_previous = current_move_index > 0
+        has_next = current_move_index < len(game_states) - 1
+        print(f"Navigation state: Index={current_move_index}, Total={len(game_states)}, Has Previous={has_previous}, Has Next={has_next}")
+        draw_navigation_button(screen, previous_button, "<", has_previous)
+        draw_navigation_button(screen, next_button, ">", has_next)
         
         # Display influence scores if statistics is enabled (at the bottom of the board)
         if show_influence and territory_data:
