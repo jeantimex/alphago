@@ -200,10 +200,10 @@ class GameState:
         influence = np.zeros((self.board.size, self.board.size), dtype=float)
         
         # Constants for influence calculation
-        DIRECT_INFLUENCE = 1.0
-        DIAGONAL_INFLUENCE = 0.5
-        DECAY_FACTOR = 0.7
-        MAX_DISTANCE = 4  # Maximum distance to propagate influence
+        DIRECT_INFLUENCE = 1.5
+        DIAGONAL_INFLUENCE = 0.7
+        DECAY_FACTOR = 0.8
+        MAX_DISTANCE = 6
         
         # Calculate direct stone influence
         for y in range(self.board.size):
@@ -229,19 +229,56 @@ class GameState:
                     total_influence = 0
                     count = 0
                     
+                    # Check in all directions (orthogonal and diagonal)
                     for dy in range(-distance, distance + 1):
                         for dx in range(-distance, distance + 1):
-                            # Only consider points exactly at 'distance' away (Manhattan distance)
-                            if abs(dx) + abs(dy) != distance:
+                            # Consider both Manhattan and diagonal distances
+                            manhattan_dist = abs(dx) + abs(dy)
+                            diagonal_dist = max(abs(dx), abs(dy))
+                            
+                            # Only consider points at the current distance
+                            if manhattan_dist != distance and diagonal_dist != distance:
                                 continue
                             
                             nx, ny = x + dx, y + dy
                             if 0 <= nx < self.board.size and 0 <= ny < self.board.size:
-                                total_influence += influence[ny, nx]
-                                count += 1
+                                # Apply different weights for orthogonal vs diagonal connections
+                                if dx == 0 or dy == 0:  # Orthogonal
+                                    total_influence += influence[ny, nx]
+                                    count += 1
+                                else:  # Diagonal
+                                    total_influence += influence[ny, nx] * DIAGONAL_INFLUENCE / DIRECT_INFLUENCE
+                                    count += DIAGONAL_INFLUENCE / DIRECT_INFLUENCE
                     
                     if count > 0:
                         influence_propagated[y, x] += (total_influence / count) * factor
+        
+        # Apply group-based influence boost
+        # Stones in groups have more influence than isolated stones
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.get_stone(x, y) == EMPTY:
+                    # Check if this empty point is near a group of stones
+                    black_group_size = 0
+                    white_group_size = 0
+                    
+                    # Check in a small radius
+                    for dy in range(-2, 3):
+                        for dx in range(-2, 3):
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < self.board.size and 0 <= ny < self.board.size:
+                                stone = self.board.get_stone(nx, ny)
+                                if stone == BLACK:
+                                    black_group_size += 1
+                                elif stone == WHITE:
+                                    white_group_size += 1
+                    
+                    # Boost influence based on group size
+                    group_factor = 0.2
+                    if black_group_size > white_group_size:
+                        influence_propagated[y, x] += (black_group_size - white_group_size) * group_factor
+                    elif white_group_size > black_group_size:
+                        influence_propagated[y, x] -= (white_group_size - black_group_size) * group_factor
         
         return influence_propagated
     
@@ -265,10 +302,10 @@ class GameState:
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if potential_territory[y, x] == EMPTY:
-                    if influence[y, x] > 0.3:  # Threshold for potential black territory
-                        potential_territory[y, x] = 3  # Use 3 to represent potential black territory
-                    elif influence[y, x] < -0.3:  # Threshold for potential white territory
-                        potential_territory[y, x] = 4  # Use 4 to represent potential white territory
+                    if influence[y, x] > 0.2:
+                        potential_territory[y, x] = 3
+                    elif influence[y, x] < -0.2:
+                        potential_territory[y, x] = 4
         
         # Count potential territory
         black_potential = np.sum(potential_territory == 3)
