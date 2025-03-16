@@ -51,33 +51,43 @@ def draw_territory_marker(screen, x, y, size, color):
         pygame.draw.polygon(s, color, points)
         screen.blit(s, (x - size // 2, y - size // 2))
 
-def draw_statistics_button(surface, rect, color=(0, 0, 0), active=False):
-    """
-    Draw a statistics button on the given surface within the specified rect.
+def draw_statistics_button(screen, button, show_influence):
+    """Draw the statistics button with appropriate colors based on state"""
+    if show_influence:
+        pygame.draw.rect(screen, (100, 100, 200), button)  # Highlighted when active
+    else:
+        pygame.draw.rect(screen, (200, 200, 200), button)  # Gray when inactive
     
-    Args:
-        surface: Pygame surface to draw on
-        rect: Rectangle defining the button boundaries
-        color: Color of the button text
-        active: Whether the button should be drawn in active state
-    """
-    # Draw button background
-    bg_color = (100, 200, 100) if active else (200, 200, 200)
-    pygame.draw.rect(surface, bg_color, rect)
-    pygame.draw.rect(surface, color, rect, 2)
+    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
     
-    # Add "Statistics" text
+    # Draw button text
     font = pygame.font.Font(None, 24)
-    text = font.render("Statistics", True, color)
-    text_x = rect.x + (rect.width - text.get_width()) // 2
-    text_y = rect.y + (rect.height - text.get_height()) // 2
-    surface.blit(text, (text_x, text_y))
+    text = font.render("Statistics", True, (0, 0, 0))
+    text_rect = text.get_rect(center=button.center)
+    screen.blit(text, text_rect)
+
+def draw_move_numbers_button(screen, button, show_move_numbers):
+    """Draw the move numbers button with appropriate colors based on state"""
+    if show_move_numbers:
+        pygame.draw.rect(screen, (100, 200, 100), button)  # Highlighted when active
+    else:
+        pygame.draw.rect(screen, (200, 200, 200), button)  # Gray when inactive
+    
+    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
+    
+    # Draw button text
+    font = pygame.font.Font(None, 24)
+    text = font.render("Move Numbers", True, (0, 0, 0))
+    text_rect = text.get_rect(center=button.center)
+    screen.blit(text, text_rect)
 
 def main():
     # Initialize pygame
     pygame.init()
     
     # Set up the display
+    WINDOW_WIDTH = 800
+    WINDOW_HEIGHT = 800
     board_size_pixels = (BOARD_SIZE - 1) * CELL_SIZE  # Actual board size in pixels
     # Add extra window space for UI elements and padding
     window_width = board_size_pixels + 2 * BOARD_PADDING + 100  # Extra space for UI
@@ -100,14 +110,29 @@ def main():
     # Territory visualization flags
     show_territory = False  # Don't show territory by default
     show_influence = False  # Don't show influence by default
+    show_move_numbers = False  # Don't show move numbers by default
     territory_size = 0.6  # Fixed size for territory markers
     
-    # Create button for influence visualization (now an icon button)
+    # Define colors
+    BLACK_COLOR = (0, 0, 0)
+    WHITE_COLOR = (255, 255, 255)
+    BOARD_COLOR = (219, 179, 107)  # Tan color for the board
+    STONE_RADIUS = CELL_SIZE // 2 - 1
+    
+    # Create button for influence visualization
     statistics_button = pygame.Rect(
-        window_width // 2 - BUTTON_WIDTH // 2,  # Center the button
-        window_height - BUTTON_HEIGHT - BUTTON_MARGIN,
-        BUTTON_WIDTH,
-        BUTTON_HEIGHT
+        window_width - 180,
+        window_height - 60,
+        120,
+        40
+    )
+    
+    # Create button for move numbers
+    move_numbers_button = pygame.Rect(
+        window_width - 350,
+        window_height - 60,
+        160,
+        40
     )
     
     # Game loop
@@ -124,6 +149,10 @@ def main():
                     if statistics_button.collidepoint(mouse_pos):
                         show_influence = not show_influence
                         # No need to toggle territory since we don't show it anymore
+                    
+                    # Check if move numbers button was clicked
+                    elif move_numbers_button.collidepoint(mouse_pos):
+                        show_move_numbers = not show_move_numbers
                     
                     else:
                         # Get board coordinates from mouse position
@@ -161,7 +190,7 @@ def main():
         seconds = game_time % 60
         
         # Draw the board
-        screen.fill((240, 217, 181))  # Wooden background color
+        screen.fill(BOARD_COLOR)  # Wooden background color
         
         # Get territory and influence data if needed
         territory_data = None
@@ -267,14 +296,35 @@ def main():
         for y in range(BOARD_SIZE):
             for x in range(BOARD_SIZE):
                 stone = board.get_stone(x, y)
-                if stone != 0:
-                    color = (0, 0, 0) if stone == BLACK else (255, 255, 255)
-                    pygame.draw.circle(
-                        screen, 
-                        color, 
-                        (board_x_offset + x * CELL_SIZE, board_y_offset + y * CELL_SIZE), 
-                        CELL_SIZE // 2 - 1
-                    )
+                if stone != EMPTY:
+                    # Calculate position
+                    pos_x = board_x_offset + x * CELL_SIZE
+                    pos_y = board_y_offset + y * CELL_SIZE
+                    
+                    # Draw stone
+                    if stone == BLACK:
+                        pygame.draw.circle(screen, BLACK_COLOR, (pos_x, pos_y), STONE_RADIUS)
+                    else:
+                        pygame.draw.circle(screen, WHITE_COLOR, (pos_x, pos_y), STONE_RADIUS)
+                    
+                    # Draw move number if enabled
+                    if show_move_numbers:
+                        # Find the move number for this position
+                        move_number = None
+                        for i, (move_x, move_y, move_color) in enumerate(game_state.move_history):
+                            if move_x == x and move_y == y:
+                                move_number = i + 1  # 1-based move numbering
+                                break
+                        
+                        if move_number is not None:
+                            # Choose text color based on stone color
+                            text_color = WHITE_COLOR if stone == BLACK else BLACK_COLOR
+                            
+                            # Draw move number
+                            font = pygame.font.Font(None, 20)
+                            text = font.render(str(move_number), True, text_color)
+                            text_rect = text.get_rect(center=(pos_x, pos_y))
+                            screen.blit(text, text_rect)
         
         # Display current player with stone icon
         font = pygame.font.SysFont('Arial', 20)
@@ -287,7 +337,7 @@ def main():
         screen.blit(text_surface, (player_indicator_x, 20))
         
         # Draw current player stone icon
-        stone_color = (0, 0, 0) if game_state.current_player == BLACK else (255, 255, 255)
+        stone_color = BLACK_COLOR if game_state.current_player == BLACK else WHITE_COLOR
         pygame.draw.circle(
             screen,
             stone_color,
@@ -304,8 +354,9 @@ def main():
         if show_territory and territory_data:
             pass
         
-        # Draw statistics button
-        draw_statistics_button(screen, statistics_button, (0, 0, 0), show_influence)
+        # Draw buttons
+        draw_statistics_button(screen, statistics_button, show_influence)
+        draw_move_numbers_button(screen, move_numbers_button, show_move_numbers)
         
         # Update the display
         pygame.display.flip()
