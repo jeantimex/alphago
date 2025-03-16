@@ -212,11 +212,19 @@ def main():
                         
                         # Color based on which player has influence (black or white)
                         if influence_value > 0:  # Black influence
-                            color = (0, 0, 255)  # Blue for black (more visible)
-                            pygame.draw.rect(screen, color, rect)
+                            # Create a black color with transparency based on influence value
+                            alpha = int(min(255, 100 + 155 * (abs(influence_value) / max_influence)))
+                            # Create a surface with per-pixel alpha
+                            s = pygame.Surface((rect_size, rect_size), pygame.SRCALPHA)
+                            s.fill((0, 0, 0, alpha))  # Black with transparency
+                            screen.blit(s, (pos_x - rect_size // 2, pos_y - rect_size // 2))
                         elif influence_value < 0:  # White influence
-                            color = (255, 0, 0)  # Red for white (more visible)
-                            pygame.draw.rect(screen, color, rect)
+                            # Create a white color with transparency based on influence value
+                            alpha = int(min(255, 100 + 155 * (abs(influence_value) / max_influence)))
+                            # Create a surface with per-pixel alpha
+                            s = pygame.Surface((rect_size, rect_size), pygame.SRCALPHA)
+                            s.fill((255, 255, 255, alpha))  # White with transparency
+                            screen.blit(s, (pos_x - rect_size // 2, pos_y - rect_size // 2))
         
         # Draw grid lines
         for i in range(BOARD_SIZE):
