@@ -8,6 +8,7 @@ import pygame
 import sys
 import time
 import numpy as np
+import os
 from game.board import Board
 from game.constants import (
     BLACK, WHITE, EMPTY, BOARD_SIZE, CELL_SIZE, BOARD_PADDING,
@@ -92,6 +93,252 @@ def draw_move_numbers_button(screen, button, show_move_numbers):
     text_rect = text.get_rect(center=button.center)
     screen.blit(text, text_rect)
 
+class SimpleFileDialog:
+    """A simple file dialog implementation using pygame"""
+    
+    def __init__(self, screen, title="Select a file", start_dir=None, file_extension=".sgf"):
+        self.screen = screen
+        self.title = title
+        self.file_extension = file_extension
+        
+        # Start in the current program directory if not specified
+        if start_dir is None:
+            self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        else:
+            self.current_dir = start_dir
+            
+        # UI settings
+        self.font = pygame.font.Font(None, 24)
+        self.title_font = pygame.font.Font(None, 32)
+        self.bg_color = (240, 240, 240)
+        self.text_color = (0, 0, 0)
+        self.highlight_color = (200, 200, 255)
+        self.border_color = (100, 100, 100)
+        
+        # File list state
+        self.files = []
+        self.selected_index = 0
+        self.scroll_offset = 0
+        self.max_visible_items = 15
+        
+        # Get initial file list
+        self.update_file_list()
+    
+    def update_file_list(self):
+        """Update the list of files and directories in the current directory"""
+        self.files = []
+        
+        # Add parent directory option
+        self.files.append(("..", True))
+        
+        try:
+            # Get all files and directories in the current directory
+            for item in os.listdir(self.current_dir):
+                full_path = os.path.join(self.current_dir, item)
+                is_dir = os.path.isdir(full_path)
+                
+                # Only include directories and files with the specified extension
+                if is_dir or (not is_dir and item.lower().endswith(self.file_extension)):
+                    self.files.append((item, is_dir))
+            
+            # Sort directories first, then files
+            self.files.sort(key=lambda x: (not x[1], x[0].lower()))
+            
+            # Reset selection and scroll
+            self.selected_index = 0
+            self.scroll_offset = 0
+        except Exception as e:
+            print(f"Error reading directory: {e}")
+    
+    def handle_event(self, event):
+        """Handle pygame events for the file dialog"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.selected_index = max(0, self.selected_index - 1)
+                # Adjust scroll if needed
+                if self.selected_index < self.scroll_offset:
+                    self.scroll_offset = self.selected_index
+            elif event.key == pygame.K_DOWN:
+                self.selected_index = min(len(self.files) - 1, self.selected_index + 1)
+                # Adjust scroll if needed
+                if self.selected_index >= self.scroll_offset + self.max_visible_items:
+                    self.scroll_offset = self.selected_index - self.max_visible_items + 1
+            elif event.key == pygame.K_RETURN:
+                # Handle selection
+                if self.selected_index < len(self.files):
+                    item, is_dir = self.files[self.selected_index]
+                    
+                    if is_dir:
+                        # Navigate to directory
+                        if item == "..":
+                            self.current_dir = os.path.dirname(self.current_dir)
+                        else:
+                            self.current_dir = os.path.join(self.current_dir, item)
+                        self.update_file_list()
+                        return None
+                    else:
+                        # Return the selected file path
+                        return os.path.join(self.current_dir, item)
+            elif event.key == pygame.K_ESCAPE:
+                # Cancel selection
+                return False
+        
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left click
+                # Calculate which item was clicked
+                mouse_y = event.pos[1]
+                item_height = 30
+                header_height = 60
+                
+                # Check if click is in the file list area
+                if mouse_y > header_height:
+                    clicked_index = self.scroll_offset + (mouse_y - header_height) // item_height
+                    
+                    if 0 <= clicked_index < len(self.files):
+                        if clicked_index == self.selected_index:
+                            # Double-click handling (simplified)
+                            item, is_dir = self.files[self.selected_index]
+                            
+                            if is_dir:
+                                # Navigate to directory
+                                if item == "..":
+                                    self.current_dir = os.path.dirname(self.current_dir)
+                                else:
+                                    self.current_dir = os.path.join(self.current_dir, item)
+                                self.update_file_list()
+                                return None
+                            else:
+                                # Return the selected file path
+                                return os.path.join(self.current_dir, item)
+                        else:
+                            # Single click - update selection
+                            self.selected_index = clicked_index
+            
+            elif event.button == 4:  # Mouse wheel up
+                self.scroll_offset = max(0, self.scroll_offset - 1)
+            elif event.button == 5:  # Mouse wheel down
+                self.scroll_offset = min(
+                    max(0, len(self.files) - self.max_visible_items),
+                    self.scroll_offset + 1
+                )
+        
+        return None
+    
+    def draw(self):
+        """Draw the file dialog"""
+        # Draw background
+        self.screen.fill(self.bg_color)
+        
+        # Draw title
+        title_surf = self.title_font.render(self.title, True, self.text_color)
+        self.screen.blit(title_surf, (20, 10))
+        
+        # Draw current directory
+        dir_surf = self.font.render(f"Directory: {self.current_dir}", True, self.text_color)
+        self.screen.blit(dir_surf, (20, 40))
+        
+        # Draw separator line
+        pygame.draw.line(self.screen, self.border_color, (0, 60), (self.screen.get_width(), 60), 2)
+        
+        # Draw file list
+        item_height = 30
+        visible_range = range(
+            self.scroll_offset,
+            min(len(self.files), self.scroll_offset + self.max_visible_items)
+        )
+        
+        for i, idx in enumerate(visible_range):
+            item, is_dir = self.files[idx]
+            y_pos = 60 + i * item_height
+            
+            # Highlight selected item
+            if idx == self.selected_index:
+                pygame.draw.rect(
+                    self.screen,
+                    self.highlight_color,
+                    (0, y_pos, self.screen.get_width(), item_height)
+                )
+            
+            # Draw item text
+            if is_dir:
+                item_text = f"📁 {item}"
+            else:
+                item_text = f"📄 {item}"
+            
+            text_surf = self.font.render(item_text, True, self.text_color)
+            self.screen.blit(text_surf, (20, y_pos + 5))
+        
+        # Draw scrollbar if needed
+        if len(self.files) > self.max_visible_items:
+            scrollbar_height = self.screen.get_height() - 60
+            thumb_size = scrollbar_height * min(1.0, self.max_visible_items / len(self.files))
+            thumb_pos = 60 + (scrollbar_height - thumb_size) * (self.scroll_offset / max(1, len(self.files) - self.max_visible_items))
+            
+            # Draw scrollbar background
+            pygame.draw.rect(
+                self.screen,
+                (220, 220, 220),
+                (self.screen.get_width() - 20, 60, 20, scrollbar_height)
+            )
+            
+            # Draw scrollbar thumb
+            pygame.draw.rect(
+                self.screen,
+                (180, 180, 180),
+                (self.screen.get_width() - 20, thumb_pos, 20, thumb_size)
+            )
+        
+        # Draw instructions
+        instructions = "Use arrow keys to navigate, Enter to select, Escape to cancel"
+        instr_surf = self.font.render(instructions, True, self.text_color)
+        self.screen.blit(
+            instr_surf,
+            (20, self.screen.get_height() - 30)
+        )
+        
+        pygame.display.flip()
+
+def load_sgf_file(screen):
+    """
+    Open a file dialog to select an SGF file using the pygame-native approach
+    Returns the file path if a file was selected, None otherwise
+    """
+    # Store the original screen state
+    original_screen_copy = screen.copy()
+    
+    # Create a temporary screen for the file dialog
+    dialog_screen = pygame.display.set_mode((600, 500))
+    pygame.display.set_caption("Select SGF File")
+    
+    # Create and run the file dialog
+    file_dialog = SimpleFileDialog(dialog_screen, title="Select SGF File", file_extension=".sgf")
+    
+    running = True
+    selected_file = None
+    
+    while running:
+        file_dialog.draw()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                selected_file = None
+            else:
+                result = file_dialog.handle_event(event)
+                if result is not None:
+                    running = False
+                    selected_file = result if result is not False else None
+        
+        pygame.time.delay(10)  # Small delay to reduce CPU usage
+    
+    # Restore the original screen
+    screen_size = original_screen_copy.get_size()
+    screen = pygame.display.set_mode(screen_size)
+    screen.blit(original_screen_copy, (0, 0))
+    pygame.display.flip()
+    
+    return selected_file
+
 def main():
     # Initialize pygame
     pygame.init()
@@ -172,7 +419,12 @@ def main():
                     # Check if load game button was clicked
                     elif load_game_button.collidepoint(mouse_pos):
                         print("Load game button clicked")
-                        # Functionality will be implemented later
+                        # Open file dialog to select SGF file
+                        sgf_file_path = load_sgf_file(screen)
+                        if sgf_file_path:
+                            print(f"Selected SGF file: {sgf_file_path}")
+                            # TODO: Implement SGF file loading functionality
+                            # This will be implemented in a future update
                     
                     # Check if move numbers button was clicked
                     elif move_numbers_button.collidepoint(mouse_pos):
