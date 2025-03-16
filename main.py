@@ -66,6 +66,17 @@ def draw_statistics_button(screen, button, show_influence):
     text_rect = text.get_rect(center=button.center)
     screen.blit(text, text_rect)
 
+def draw_load_game_button(screen, button):
+    """Draw the load game button"""
+    pygame.draw.rect(screen, (200, 200, 200), button)  # Gray background
+    pygame.draw.rect(screen, (0, 0, 0), button, 2)  # Black border
+    
+    # Draw button text
+    font = pygame.font.Font(None, 24)
+    text = font.render("Load game", True, (0, 0, 0))
+    text_rect = text.get_rect(center=button.center)
+    screen.blit(text, text_rect)
+
 def draw_move_numbers_button(screen, button, show_move_numbers):
     """Draw the move numbers button with appropriate colors based on state"""
     if show_move_numbers:
@@ -127,11 +138,19 @@ def main():
         40
     )
     
+    # Create button for load game
+    load_game_button = pygame.Rect(
+        window_width - 320,
+        window_height - 60,
+        120,
+        40
+    )
+    
     # Create button for move numbers
     move_numbers_button = pygame.Rect(
-        window_width - 350,
+        window_width - 460,
         window_height - 60,
-        160,
+        120,
         40
     )
     
@@ -149,6 +168,11 @@ def main():
                     if statistics_button.collidepoint(mouse_pos):
                         show_influence = not show_influence
                         # No need to toggle territory since we don't show it anymore
+                    
+                    # Check if load game button was clicked
+                    elif load_game_button.collidepoint(mouse_pos):
+                        print("Load game button clicked")
+                        # Functionality will be implemented later
                     
                     # Check if move numbers button was clicked
                     elif move_numbers_button.collidepoint(mouse_pos):
@@ -366,6 +390,7 @@ def main():
         
         # Draw buttons
         draw_statistics_button(screen, statistics_button, show_influence)
+        draw_load_game_button(screen, load_game_button)
         draw_move_numbers_button(screen, move_numbers_button, show_move_numbers)
         
         # Display influence scores if statistics is enabled (at the bottom of the board)
