@@ -4,6 +4,7 @@ Manages the game flow, player turns, and game rules.
 """
 
 from .constants import BLACK, WHITE, EMPTY
+import numpy as np
 
 class GameState:
     def __init__(self, board):
@@ -125,30 +126,163 @@ class GameState:
     def calculate_territory(self):
         """
         Calculate the territory controlled by each player.
-        This is a simplified territory calculation.
+        Uses a more advanced algorithm inspired by KataGo's territory evaluation.
         
         Returns:
-            dict: Dictionary with the territory for each player
+            dict: Dictionary with the territory for each player and territory map
         """
         # Create a copy of the board to mark territory
         territory_board = self.board.board.copy()
+        territory_map = np.zeros((self.board.size, self.board.size), dtype=int)
         
         # Find empty spaces and determine which player controls them
         black_territory = 0
         white_territory = 0
         
-        # For each empty intersection, check if it's surrounded by one color
+        # First, identify all empty regions using flood fill
+        visited = set()
+        empty_regions = []
+        
         for y in range(self.board.size):
             for x in range(self.board.size):
-                if territory_board[y, x] == EMPTY:
-                    # Check if this empty space is territory
-                    surrounded_by = self.check_surrounded_by(x, y)
-                    if surrounded_by == BLACK:
+                if territory_board[y, x] == EMPTY and (x, y) not in visited:
+                    # Found a new empty region, flood fill to find all connected empty points
+                    region = []
+                    border_colors = set()
+                    
+                    def flood_fill(cx, cy):
+                        if (cx, cy) in visited:
+                            return
+                        
+                        if not (0 <= cx < self.board.size and 0 <= cy < self.board.size):
+                            return
+                        
+                        if territory_board[cy, cx] == EMPTY:
+                            visited.add((cx, cy))
+                            region.append((cx, cy))
+                            flood_fill(cx+1, cy)
+                            flood_fill(cx-1, cy)
+                            flood_fill(cx, cy+1)
+                            flood_fill(cx, cy-1)
+                        elif territory_board[cy, cx] != EMPTY:
+                            # Found a border stone
+                            border_colors.add(territory_board[cy, cx])
+                    
+                    flood_fill(x, y)
+                    empty_regions.append((region, border_colors))
+        
+        # Assign territory based on the border colors of each empty region
+        for region, border_colors in empty_regions:
+            if len(border_colors) == 1:  # Region is surrounded by stones of one color
+                color = list(border_colors)[0]
+                for x, y in region:
+                    territory_map[y, x] = color  # Mark as territory
+                    if color == BLACK:
                         black_territory += 1
-                    elif surrounded_by == WHITE:
+                    elif color == WHITE:
                         white_territory += 1
         
-        return {BLACK: black_territory, WHITE: white_territory}
+        return {
+            BLACK: black_territory, 
+            WHITE: white_territory,
+            'territory_map': territory_map
+        }
+    
+    def calculate_influence(self):
+        """
+        Calculate influence map for both players based on stone positions.
+        This is inspired by KataGo's influence calculation.
+        
+        Returns:
+            numpy.ndarray: Influence map where positive values indicate black influence
+                          and negative values indicate white influence
+        """
+        influence = np.zeros((self.board.size, self.board.size), dtype=float)
+        
+        # Constants for influence calculation
+        DIRECT_INFLUENCE = 1.0
+        DIAGONAL_INFLUENCE = 0.5
+        DECAY_FACTOR = 0.7
+        MAX_DISTANCE = 4  # Maximum distance to propagate influence
+        
+        # Calculate direct stone influence
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                stone = self.board.get_stone(x, y)
+                if stone == BLACK:
+                    influence[y, x] = DIRECT_INFLUENCE
+                elif stone == WHITE:
+                    influence[y, x] = -DIRECT_INFLUENCE
+        
+        # Propagate influence
+        influence_propagated = influence.copy()
+        
+        for distance in range(1, MAX_DISTANCE + 1):
+            factor = DIRECT_INFLUENCE * (DECAY_FACTOR ** distance)
+            
+            for y in range(self.board.size):
+                for x in range(self.board.size):
+                    if self.board.get_stone(x, y) != EMPTY:
+                        continue  # Skip non-empty points
+                    
+                    # Check surrounding points at current distance
+                    total_influence = 0
+                    count = 0
+                    
+                    for dy in range(-distance, distance + 1):
+                        for dx in range(-distance, distance + 1):
+                            # Only consider points exactly at 'distance' away (Manhattan distance)
+                            if abs(dx) + abs(dy) != distance:
+                                continue
+                            
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < self.board.size and 0 <= ny < self.board.size:
+                                total_influence += influence[ny, nx]
+                                count += 1
+                    
+                    if count > 0:
+                        influence_propagated[y, x] += (total_influence / count) * factor
+        
+        return influence_propagated
+    
+    def get_potential_territory(self):
+        """
+        Get potential territory based on influence and current territory.
+        
+        Returns:
+            dict: Dictionary with potential territory information
+        """
+        territory = self.calculate_territory()
+        influence = self.calculate_influence()
+        
+        # Create potential territory map
+        potential_territory = np.zeros((self.board.size, self.board.size), dtype=int)
+        
+        # First, copy definite territory
+        potential_territory = territory['territory_map'].copy()
+        
+        # Then, mark potential territory based on influence
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if potential_territory[y, x] == EMPTY:
+                    if influence[y, x] > 0.3:  # Threshold for potential black territory
+                        potential_territory[y, x] = 3  # Use 3 to represent potential black territory
+                    elif influence[y, x] < -0.3:  # Threshold for potential white territory
+                        potential_territory[y, x] = 4  # Use 4 to represent potential white territory
+        
+        # Count potential territory
+        black_potential = np.sum(potential_territory == 3)
+        white_potential = np.sum(potential_territory == 4)
+        
+        return {
+            'territory_map': territory['territory_map'],
+            'potential_territory_map': potential_territory,
+            'influence': influence,
+            BLACK: territory[BLACK] + black_potential,
+            WHITE: territory[WHITE] + white_potential,
+            'black_potential': black_potential,
+            'white_potential': white_potential
+        }
     
     def check_surrounded_by(self, x, y):
         """
