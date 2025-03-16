@@ -196,12 +196,23 @@ def main():
         territory_data = None
         potential_territory_map = None
         influence_map = None
+        black_influence_total = 0
+        white_influence_total = 0
         
         if show_influence:
             # Calculate influence map
             territory_data = game_state.get_potential_territory()
             influence_map = territory_data['influence']
             max_influence = max(1.0, np.max(np.abs(influence_map)))  # Normalize influence
+            
+            # Calculate total influence for each player
+            for y in range(BOARD_SIZE):
+                for x in range(BOARD_SIZE):
+                    influence_value = influence_map[y, x]
+                    if influence_value > 0:  # Black influence
+                        black_influence_total += influence_value
+                    elif influence_value < 0:  # White influence (negative values)
+                        white_influence_total -= influence_value  # Convert to positive
             
             # Draw influence
             for y in range(BOARD_SIZE):
@@ -328,12 +339,15 @@ def main():
         
         # Display current player with stone icon
         font = pygame.font.SysFont('Arial', 20)
-        player_text = "Current Player: "
-        text_surface = font.render(player_text, True, (0, 0, 0))
+        player_indicator_x = 20
+        
+        # Display current player text
+        text = f"Current Player: "
+        text_surface = font.render(text, True, BLACK_COLOR)
         text_width = text_surface.get_width()
         
         # Center the player indicator
-        player_indicator_x = window_width // 2 - text_width // 2 - 15  # Adjust for stone icon
+        player_indicator_x = 20
         screen.blit(text_surface, (player_indicator_x, 20))
         
         # Draw current player stone icon
@@ -341,22 +355,55 @@ def main():
         pygame.draw.circle(
             screen,
             stone_color,
-            (player_indicator_x + text_width + 15, 30),  # Position after text
-            15  # Larger stone for visibility
+            (player_indicator_x + text_width + 15, 20 + text_surface.get_height() // 2),
+            10
         )
         
         # Display timer in top right corner
         timer_text = f"Time: {minutes:02d}:{seconds:02d}"
-        timer_surface = font.render(timer_text, True, (0, 0, 0))
+        timer_surface = font.render(timer_text, True, BLACK_COLOR)
         screen.blit(timer_surface, (window_width - timer_surface.get_width() - 20, 20))
-        
-        # Display territory score if territory is shown
-        if show_territory and territory_data:
-            pass
         
         # Draw buttons
         draw_statistics_button(screen, statistics_button, show_influence)
         draw_move_numbers_button(screen, move_numbers_button, show_move_numbers)
+        
+        # Display influence scores if statistics is enabled (at the bottom of the board)
+        if show_influence and territory_data:
+            # Create a larger font for the score display
+            score_font = pygame.font.SysFont('Arial', 24)
+            
+            # Position for the score display at the bottom of the board
+            score_y = board_y_offset + board_size_pixels + 30
+            
+            # Display White's influence with white circle
+            white_score_x = WINDOW_WIDTH // 4
+            
+            # Draw white circle
+            pygame.draw.circle(screen, WHITE_COLOR, (white_score_x - 30, score_y), 10)
+            pygame.draw.circle(screen, BLACK_COLOR, (white_score_x - 30, score_y), 10, 1)  # Black outline
+            
+            # Draw white influence text
+            white_score_text = f": {white_influence_total:.1f}"
+            white_score_surface = score_font.render(white_score_text, True, BLACK_COLOR)
+            screen.blit(white_score_surface, (white_score_x - 15, score_y - 12))
+            
+            # Display Black's influence with black circle
+            black_score_x = 3 * WINDOW_WIDTH // 4
+            
+            # Draw black circle
+            pygame.draw.circle(screen, BLACK_COLOR, (black_score_x - 30, score_y), 10)
+            
+            # Draw black influence text
+            black_score_text = f": {black_influence_total:.1f}"
+            black_score_surface = score_font.render(black_score_text, True, BLACK_COLOR)
+            screen.blit(black_score_surface, (black_score_x - 15, score_y - 12))
+            
+            # Draw separator
+            separator_text = "-"
+            separator_surface = score_font.render(separator_text, True, BLACK_COLOR)
+            separator_x = WINDOW_WIDTH // 2
+            screen.blit(separator_surface, (separator_x - separator_surface.get_width() // 2, score_y - 12))
         
         # Update the display
         pygame.display.flip()
