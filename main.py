@@ -6,7 +6,6 @@ A PyGame-based implementation of the Go board game with basic game mechanics.
 
 import pygame
 import sys
-import time
 import numpy as np
 import os
 from game.board import Board
@@ -628,10 +627,6 @@ def main():
     board = Board(BOARD_SIZE)
     game_state = GameState(board)
     
-    # Game timer variables
-    start_time = time.time()
-    game_time = 0
-    
     # Territory visualization flags
     show_territory = False  # Don't show territory by default
     show_influence = False  # Don't show influence by default
@@ -693,8 +688,6 @@ def main():
                             # Load the game from the SGF file
                             if load_game_from_sgf(sgf_file_path, board, game_state):
                                 print("Game loaded successfully")
-                                # Reset timer
-                                start_time = time.time()
                             else:
                                 print("Failed to load game")
                     
@@ -725,17 +718,11 @@ def main():
                     # Reset game
                     board = Board(BOARD_SIZE)
                     game_state = GameState(board)
-                    start_time = time.time()  # Reset timer
                     print("Game reset")
                 elif event.key == pygame.K_i:
                     # Toggle influence visualization
                     show_influence = not show_influence
                     # Don't toggle territory when toggling influence
-        
-        # Update game timer
-        game_time = int(time.time() - start_time)
-        minutes = game_time // 60
-        seconds = game_time % 60
         
         # Draw the board
         screen.fill(BOARD_COLOR)  # Wooden background color
@@ -906,11 +893,6 @@ def main():
             (player_indicator_x + text_width + 15, 20 + text_surface.get_height() // 2),
             10
         )
-        
-        # Display timer in top right corner
-        timer_text = f"Time: {minutes:02d}:{seconds:02d}"
-        timer_surface = font.render(timer_text, True, BLACK_COLOR)
-        screen.blit(timer_surface, (window_width - timer_surface.get_width() - 20, 20))
         
         # Draw buttons
         draw_statistics_button(screen, statistics_button, show_influence)
